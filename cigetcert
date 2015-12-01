@@ -1,0 +1,121 @@
+#!/usr/bin/env python2.6
+
+# Acronyms used:
+#  SP - Service Provider (cilogon)
+#  IdP - Identity Provider
+#  SAML - Security Assertion Markup Language
+#  ECP - Enhanced Client or Proxy SAML Profile
+
+#
+# cigetcert gets an X.509 certificate from an SP using the ECP profile.
+# Optionally it can also get a grid proxy certificate and/or transfer
+#   the proxy to MyProxy.
+
+prog = "cigetcert"
+version = "0.1"
+
+import sys
+import re
+import xml.etree.ElementTree
+import urllib2
+import cookielib
+
+from optparse import OptionParser
+
+config = {
+    "spurl" : "https://test.cilogon.org/secure",
+    "idplisturl" : "https://test.cilogon.org/include/ecpidps.txt"
+}
+
+# found this function at
+#  http://stackoverflow.com/questions/27227221/error-when-using-xml-api-findall-in-with-python-2-6
+def resolve_xpath(xpath, namespace):
+    result = xpath
+    for short_name, url in namespace.items():
+        result = re.sub(r'\b' + short_name + ':', '{' + url + '}', result)
+    return result
+
+def main():
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage=usage, version=version)
+
+    parser.add_option("-d", "--debug", 
+                      action="store_true", dest="debug", default=False,
+                      help="write debug output to stdout")
+    parser.add_option("", "--spurl", 
+                      action="store", dest="spurl", metavar="URL",
+		      default=config['spurl'],
+                      help="Service Provider URL")
+    parser.add_option("", "--idplisturl", 
+                      action="store", dest="idplisturl", metavar="URL",
+		      default=config['idplisturl'],
+                      help="Identity Provider list URL")
+    (options, args) = parser.parse_args()
+    if len(args) != 0:
+	print >> sys.stderr, prog + ": no non-optional arguments expected\n"
+	parser.print_help(sys.stderr)
+	sys.exit(2)
+
+
+    ### Begin the communication, starting with the SP ###
+    cookiejar = cookielib.LWPCookieJar()
+    cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
+    httpshandler = urllib2.HTTPSHandler()
+    if options.debug:
+	httpshandler.set_http_debuglevel(1)
+    opener = urllib2.build_opener(cookiehandler, httpshandler)
+    headers = {
+	'Accept' : 'text/html; application/vnd.paos+xml',
+	'PAOS'   : 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
+    }
+    if options.debug:
+	print "##### Requesting to SP"
+    sprequest = urllib2.Request(url=options.spurl,headers=headers)
+    try:
+	sphandle = opener.open(sprequest)
+    except Exception, e:
+	print >>sys.stderr, "First request to %s failed: %s" % (spurl,e)
+	sys.exit(1)
+    
+    spetree = xml.etree.ElementTree.parse(sphandle)
+    if options.debug:
+	print "##### Begin SP response"
+	xml.etree.ElementTree.dump(spetree)
+	print "##### End SP response"
+
+    # these are used for multiple XML parses below
+    namespaces = {
+        'ecp' : 'urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp',
+        'S'   : 'http://schemas.xmlsoap.org/soap/envelope/',
+        'paos': 'urn:liberty:paos:2003-08'
+    }
+
+    # pull out the RelayState
+    try:
+	relaystate = spetree.find(resolve_xpath("/S:Header/ecp:RelayState", namespaces))
+    except Exception, e:
+	print >>sys.stderr, "Unable to parse RelayState element from SP response: %s" % e
+	sys.exit(1)
+
+    if options.debug:
+	print "###### Begin RelayState element"
+	xml.etree.ElementTree.dump(relaystate)
+	print "###### End RelayState element"
+
+    # pull out the responseConsumerURL
+    try:
+	responseConsumerURL = spetree.find(resolve_xpath("/S:Header/paos:Request", namespaces)).attrib['responseConsumerURL']
+    except Exception, e:
+	print >>sys.stderr, "Unable to parse responseConsumerURL attribute from SP response: %s" % e
+	sys.exit(1)
+
+
+    if options.debug:
+	print "###### Begin responseConsumerUrl attribute"
+	print responseConsumerURL
+	print "###### End responseConsumerUrl attribute"
+
+    
+
+if __name__ == '__main__':
+    main()
