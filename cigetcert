@@ -15,10 +15,13 @@ prog = "cigetcert"
 version = "0.1"
 
 import sys
+import os
 import re
 import xml.etree.ElementTree
 import urllib2
+import urlparse
 import cookielib
+import kerberos
 
 from optparse import OptionParser
 
@@ -27,37 +30,110 @@ config = {
     "idplisturl" : "https://test.cilogon.org/include/ecpidps.txt"
 }
 
-# found this function at
-#  http://stackoverflow.com/questions/27227221/error-when-using-xml-api-findall-in-with-python-2-6
+def usage(parser, msg):
+    print >> sys.stderr, prog + ": " + msg + '\n'
+    parser.print_help(sys.stderr)
+    sys.exit(2)
+
+def fatal(msg, code=1):
+    print >> sys.stderr, prog + ": " + msg + '\n'
+    sys.exit(code)
+
+# this is from http://stackoverflow.com/questions/27227221/error-when-using-xml-api-findall-in-with-python-2-6
 def resolve_xpath(xpath, namespace):
     result = xpath
     for short_name, url in namespace.items():
         result = re.sub(r'\b' + short_name + ':', '{' + url + '}', result)
     return result
 
+# this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
+def www_auth(handle):
+    auth_fields = {}
+    for field in handle.info().getheader("www-authenticate", "").split(","):
+	kind, __, details = field.strip().partition(" ")
+	auth_fields[kind.lower()] = details.strip()
+    return auth_fields
+
+# function from http://stackoverflow.com/questions/4407539/python-how-to-make-an-option-to-be-required-in-optparse
+def checkRequiredOptions(options, parser):
+    missing_options = []
+    for option in parser.option_list:
+        if re.search('\(required\)$', option.help) and eval('options.' + option.dest) == None:
+            missing_options.extend(option._long_opts)
+    if len(missing_options) > 0:
+	usage(parser, "Missing required parameters: " + str(missing_options))
+
 def main():
-    usage = "usage: %prog [options]"
-    parser = OptionParser(usage=usage, version=version)
+    usagestr = "usage: %prog [options]"
+    parser = OptionParser(usage=usagestr, version=version)
 
     parser.add_option("-d", "--debug", 
                       action="store_true", dest="debug", default=False,
                       help="write debug output to stdout")
-    parser.add_option("", "--spurl", 
-                      action="store", dest="spurl", metavar="URL",
-		      default=config['spurl'],
-                      help="Service Provider URL")
+    parser.add_option("-i", "--institution", 
+                      action="store", dest="institution", metavar="Name",
+                      help="Institution name (required)")
     parser.add_option("", "--idplisturl", 
                       action="store", dest="idplisturl", metavar="URL",
 		      default=config['idplisturl'],
                       help="Identity Provider list URL")
+    parser.add_option("", "--spurl", 
+                      action="store", dest="spurl", metavar="URL",
+		      default=config['spurl'],
+                      help="Service Provider URL")
+    parser.add_option("-k", "--kerberos", 
+                      action="store_true", dest="kerberos", default=False,
+                      help="prefer kerberos authentication if available")
+    parser.add_option("-n", "--noprompt", 
+                      action="store_true", dest="noprompt", default=False,
+                      help="do not prompt for password (implies --kerberos)")
+    parser.add_option("-p", "--promptstr", 
+                      action="store", dest="promptstr", metavar="str",
+		      default="Password for " + os.getenv("LOGNAME"),
+                      help="password prompt string")
+
+    # add default value (if any) to the help messages that are strings
+    for option in parser.option_list:
+	if (option.default != ("NO", "DEFAULT")) and (option.action == "store"):
+	    option.help += " [default: %default]"
+
     (options, args) = parser.parse_args()
     if len(args) != 0:
-	print >> sys.stderr, prog + ": no non-optional arguments expected\n"
-	parser.print_help(sys.stderr)
-	sys.exit(2)
+	usage(parser, "no non-option arguments expected")
 
+    checkRequiredOptions(options, parser)
 
-    ### Begin the communication, starting with the SP ###
+    if options.noprompt:
+	options.kerberos = True
+
+    ### Look up the IdP URL
+    try:
+	response = urllib2.urlopen(options.idplisturl)
+	idplist = response.read()
+    except Exception, e:
+	fatal("fetch of idplist from %s failed: %s" % (options.idplisturl, e))
+
+    idpurl = None
+    idpkrburl = None
+    for line in idplist.splitlines():
+	idx = line.index(' ')
+	name = line[idx+1:]
+	if re.match(options.institution + '($| \()', name) != None:
+	    url = idpurl = line[0:idx]
+	    if line.endswith('(Kerberos)'):
+		idpkrburl = url
+	    else:
+		idpurl = url
+    if idpkrburl == None:
+	# if there's no server explicitly marked for kerberos, it's
+	#   possible the regular server supports it
+	idpkrburl = idpurl
+
+    if idpkrburl == None:
+	fatal('No institution called "' + options.institution + '"\n' +
+			'  in ' + options.idplisturl)
+
+    ### Begin the real communication, starting with the SP ###
     cookiejar = cookielib.LWPCookieJar()
     cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
     httpshandler = urllib2.HTTPSHandler()
@@ -69,19 +145,20 @@ def main():
 	'PAOS'   : 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
     }
     if options.debug:
-	print "##### Requesting to SP"
+	print "##### Requesting to SP " + options.spurl
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
     try:
 	sphandle = opener.open(sprequest)
     except Exception, e:
-	print >>sys.stderr, "First request to %s failed: %s" % (spurl,e)
-	sys.exit(1)
+	fatal("first request to SP %s failed: %s" % (options.spurl,e))
     
     spetree = xml.etree.ElementTree.parse(sphandle)
     if options.debug:
 	print "##### Begin SP response"
+	print sphandle.info()
 	xml.etree.ElementTree.dump(spetree)
 	print "##### End SP response"
+    sphandle.close()
 
     # these are used for multiple XML parses below
     namespaces = {
@@ -94,8 +171,7 @@ def main():
     try:
 	relaystate = spetree.find(resolve_xpath("/S:Header/ecp:RelayState", namespaces))
     except Exception, e:
-	print >>sys.stderr, "Unable to parse RelayState element from SP response: %s" % e
-	sys.exit(1)
+	fatal("Unable to parse RelayState element from SP response: %s" % e)
 
     if options.debug:
 	print "###### Begin RelayState element"
@@ -106,16 +182,73 @@ def main():
     try:
 	responseConsumerURL = spetree.find(resolve_xpath("/S:Header/paos:Request", namespaces)).attrib['responseConsumerURL']
     except Exception, e:
-	print >>sys.stderr, "Unable to parse responseConsumerURL attribute from SP response: %s" % e
-	sys.exit(1)
-
+	fatal("Unable to parse responseConsumerURL attribute from SP response: %s" % e)
 
     if options.debug:
 	print "###### Begin responseConsumerUrl attribute"
 	print responseConsumerURL
 	print "###### End responseConsumerUrl attribute"
 
-    
+    # remove the SOAP header to pass the AuthnRequest on to the IdP
+    idprequestbody = spetree
+    header = idprequestbody.find(resolve_xpath("/S:Header", namespaces))
+    elements = idprequestbody.getroot()
+    elements.remove(header)
+    idpbody=xml.etree.ElementTree.tostring(elements)
+
+    if options.debug:
+	print "###### Begin IdP request body"
+	xml.etree.ElementTree.dump(idprequestbody)
+	print "###### End IdP request body"
+
+    wwwauthenticate = ""
+    if options.kerberos:
+        # try Kerberos first, expect back a 401 Not authorized
+
+	# make a handler that does not raise an error on 401
+	class NotAuthHandler(urllib2.HTTPSHandler):
+	    def http_error_401(self, request, response, code, msg, hdrs):
+		return response
+	notauthopener = urllib2.build_opener(NotAuthHandler)
+
+	if options.debug:
+	    print "###### Making unauthorized request to IdP " + idpkrburl
+	idprequest = urllib2.Request(url=idpkrburl)
+        try:
+	    idphandle = notauthopener.open(idprequest)
+	except Exception, e:
+	    fatal("Failure on first (unauthorized) request from IdP %s: %s" % (idpkrburl, e))
+
+	if options.debug:
+	    print "###### Begin IdP response to unauthorized request"
+	    print idphandle.info()
+	    print "###### End IdP response to unauthorized request"
+
+	if idphandle.getcode() != 401:
+	    fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, idphandle.getcode()))
+
+	wwwauthenticate = www_auth(idphandle)
+	if 'negotiate' in wwwauthenticate:
+	    service = "HTTP@" + urlparse.urlsplit(idpkrburl).hostname
+	    if options.debug:
+		print "###### Initializing kerberos context for " + service
+	    __, krb_context = kerberos.authGSSClientInit(service)
+	    kerberos.authGSSClientStep(krb_context, "")
+	    negotiate_details = kerberos.authGSSClientResponse(krb_context)
+	    headers = {"Authorization": "Negotiate " + negotiate_details}
+
+	    # Redo it with kerberos, sending the AuthnRequest in a POST
+	    if options.debug:
+		print "###### Making authorized request to IdP " + idpkrburl
+		for header in headers:
+		    print header + ': ' + headers[header]
+
+	    idprequest = urllib2.Request(idpkrburl, headers=headers,
+						data=idpbody)
+	    try:
+		idphandle = opener.open(idprequest)
+	    except Exception, e:
+		fatal("Failure on response from IdP %s: %s" % (idpkrburl, e))
 
 if __name__ == '__main__':
     main()
