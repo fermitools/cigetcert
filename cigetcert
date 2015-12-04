@@ -137,6 +137,7 @@ def main():
     except Exception, e:
 	fatal("fetch of idplist from %s failed: %s" % (options.idplisturl, e))
     idplist = idplisthandle.read()
+    idplisthandle.close()
 
     idpurl = None
     idpkrburl = None
@@ -177,9 +178,11 @@ def main():
 	fatal("first request to SP %s failed: %s" % (options.spurl,e))
     
     spetree = etree.XML(sphandle.read())
+    sphandle.close()
+
     if options.debug:
 	print "##### Begin SP response"
-	print etree.tostring(spetree)
+	print etree.tostring(spetree, pretty_print=True)
 	print "##### End SP response"
 
     # these are used for multiple XML parses below
@@ -197,7 +200,7 @@ def main():
 
     if options.debug:
 	print "###### Begin RelayState element"
-	print etree.tostring(relaystate)
+	print etree.tostring(relaystate, pretty_print=True)
 	print "###### End RelayState element"
 
     # pull out the responseConsumerURL
@@ -215,11 +218,12 @@ def main():
     idprequestbody = spetree
     header = idprequestbody[0]
     idprequestbody.remove(header)
+    # can't pretty print here or the IdP doesn't like it
     idpbody=etree.tostring(idprequestbody)
 
     if options.debug:
 	print "###### Begin IdP request body"
-	print idpbody
+        print etree.tostring(idprequestbody, pretty_print=True)
 	print "###### End IdP request body"
 
     # make a handler that does not raise an error on 401
@@ -258,6 +262,7 @@ def main():
     if idphandle.getcode() != 401:
 	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, idphandle.getcode()))
     wwwauthenticate = www_auth(idphandle)
+    idphandle.close()
 
     idphandle = None
     if options.kerberos:
@@ -307,6 +312,14 @@ def main():
 	    idphandle = opener.open(idprequest)
 	except Exception, e:
 	    fatal("Failure on response from IdP %s: %s" % (idpurl, e))
+
+    idpetree = etree.XML(idphandle.read())
+    idphandle.close()
+
+    if options.debug:
+	print "###### Begin IdP response"
+	print etree.tostring(idpetree, pretty_print=True)
+	print "###### End IdP response"
 
 if __name__ == '__main__':
     main()
