@@ -17,7 +17,8 @@ version = "0.1"
 import sys
 import os
 import re
-import xml.etree.ElementTree
+sys.path.append('lxml.egg')
+from lxml import etree
 import urllib2
 import urlparse
 import cookielib
@@ -175,10 +176,10 @@ def main():
     except Exception, e:
 	fatal("first request to SP %s failed: %s" % (options.spurl,e))
     
-    spetree = xml.etree.ElementTree.parse(sphandle)
+    spetree = etree.XML(sphandle.read())
     if options.debug:
 	print "##### Begin SP response"
-	xml.etree.ElementTree.dump(spetree)
+	print etree.tostring(spetree)
 	print "##### End SP response"
 
     # these are used for multiple XML parses below
@@ -190,20 +191,20 @@ def main():
 
     # pull out the RelayState
     try:
-	relaystate = spetree.find(resolve_xpath("/S:Header/ecp:RelayState", namespaces))
+	relaystate = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
     except Exception, e:
 	fatal("Unable to parse RelayState element from SP response: %s" % e)
 
     if options.debug:
 	print "###### Begin RelayState element"
-	xml.etree.ElementTree.dump(relaystate)
+	print etree.tostring(relaystate)
 	print "###### End RelayState element"
 
     # pull out the responseConsumerURL
     try:
-	responseConsumerURL = spetree.find(resolve_xpath("/S:Header/paos:Request", namespaces)).attrib['responseConsumerURL']
+	responseConsumerURL = spetree.xpath("/S:Envelope/S:Header/paos:Request/@responseConsumerURL", namespaces=namespaces)[0]
     except Exception, e:
-	fatal("Unable to parse responseConsumerURL attribute from SP response: %s" % e)
+	fatal("Unable to parse responseConsumerURL from SP response: %s" % e)
 
     if options.debug:
 	print "###### Begin responseConsumerUrl attribute"
@@ -212,13 +213,9 @@ def main():
 
     # remove the SOAP header to pass the AuthnRequest on to the IdP
     idprequestbody = spetree
-    header = idprequestbody.find(resolve_xpath("/S:Header", namespaces))
-    elements = idprequestbody.getroot()
-    elements.remove(header)
-    idprequeststream = StringIO.StringIO()
-    idprequestbody.write(idprequeststream)
-    idpbody=idprequeststream.getvalue()
-    idprequeststream.close()
+    header = idprequestbody[0]
+    idprequestbody.remove(header)
+    idpbody=etree.tostring(idprequestbody)
 
     if options.debug:
 	print "###### Begin IdP request body"
