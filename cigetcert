@@ -22,6 +22,9 @@ import urllib2
 import urlparse
 import cookielib
 import kerberos
+import getpass
+import base64
+import StringIO
 
 from optparse import OptionParser
 
@@ -67,9 +70,12 @@ def main():
     usagestr = "usage: %prog [options]"
     parser = OptionParser(usage=usagestr, version=version)
 
+    parser.add_option("-v", "--verbose", 
+                      action="store_true", dest="verbose", default=False,
+                      help="write progress to stdout")
     parser.add_option("-d", "--debug", 
                       action="store_true", dest="debug", default=False,
-                      help="write debug output to stdout")
+                      help="write detailed debug output to stdout (implies -v)")
     parser.add_option("-i", "--institution", 
                       action="store", dest="institution", metavar="Name",
                       help="Institution name (required)")
@@ -89,8 +95,12 @@ def main():
                       help="do not prompt for password (implies --kerberos)")
     parser.add_option("-p", "--promptstr", 
                       action="store", dest="promptstr", metavar="str",
-		      default="Password for " + os.getenv("LOGNAME"),
+		      default="Password for %username",
                       help="password prompt string")
+    parser.add_option("-u", "--username", 
+                      action="store", dest="username", metavar="str",
+		      default=os.getenv("LOGNAME"),
+                      help="username for authentication")
 
     # add default value (if any) to the help messages that are strings
     for option in parser.option_list:
@@ -103,15 +113,29 @@ def main():
 
     checkRequiredOptions(options, parser)
 
+    # set implied options
+    if options.debug:
+	options.verbose = True
     if options.noprompt:
 	options.kerberos = True
 
+    # Set up https handler/opener with cookies
+    cookiejar = cookielib.LWPCookieJar()
+    cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
+    httpshandler = urllib2.HTTPSHandler()
+    if options.debug:
+	httpshandler.set_http_debuglevel(1)
+    opener = urllib2.build_opener(cookiehandler, httpshandler)
+
     ### Look up the IdP URL
+    if options.verbose:
+	print "Fetching list of IdPs from " + options.idplisturl
+    idplistrequest = urllib2.Request(url=options.idplisturl)
     try:
-	response = urllib2.urlopen(options.idplisturl)
-	idplist = response.read()
+	idplisthandle = opener.open(idplistrequest)
     except Exception, e:
 	fatal("fetch of idplist from %s failed: %s" % (options.idplisturl, e))
+    idplist = idplisthandle.read()
 
     idpurl = None
     idpkrburl = None
@@ -119,8 +143,8 @@ def main():
 	idx = line.index(' ')
 	name = line[idx+1:]
 	if re.match(options.institution + '($| \()', name) != None:
-	    url = idpurl = line[0:idx]
-	    if line.endswith('(Kerberos)'):
+	    url = line[0:idx]
+	    if line.endswith(' (Kerberos)'):
 		idpkrburl = url
 	    else:
 		idpurl = url
@@ -133,19 +157,18 @@ def main():
 	fatal('No institution called "' + options.institution + '"\n' +
 			'  in ' + options.idplisturl)
 
-    ### Begin the real communication, starting with the SP ###
-    cookiejar = cookielib.LWPCookieJar()
-    cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
-    httpshandler = urllib2.HTTPSHandler()
     if options.debug:
-	httpshandler.set_http_debuglevel(1)
-    opener = urllib2.build_opener(cookiehandler, httpshandler)
+	print '##### IdP URL: ' + str(idpurl)
+	if options.kerberos:
+	    print '##### Kerberos IdP URL: ' + str(idpkrburl)
+
+    ### Begin the real SAML communication, starting with the SP ###
     headers = {
 	'Accept' : 'text/html; application/vnd.paos+xml',
 	'PAOS'   : 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
     }
-    if options.debug:
-	print "##### Requesting to SP " + options.spurl
+    if options.verbose:
+	print "Requesting authorization from SP " + options.spurl
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
     try:
 	sphandle = opener.open(sprequest)
@@ -155,10 +178,8 @@ def main():
     spetree = xml.etree.ElementTree.parse(sphandle)
     if options.debug:
 	print "##### Begin SP response"
-	print sphandle.info()
 	xml.etree.ElementTree.dump(spetree)
 	print "##### End SP response"
-    sphandle.close()
 
     # these are used for multiple XML parses below
     namespaces = {
@@ -194,40 +215,55 @@ def main():
     header = idprequestbody.find(resolve_xpath("/S:Header", namespaces))
     elements = idprequestbody.getroot()
     elements.remove(header)
-    idpbody=xml.etree.ElementTree.tostring(elements)
+    idprequeststream = StringIO.StringIO()
+    idprequestbody.write(idprequeststream)
+    idpbody=idprequeststream.getvalue()
+    idprequeststream.close()
 
     if options.debug:
 	print "###### Begin IdP request body"
-	xml.etree.ElementTree.dump(idprequestbody)
+	print idpbody
 	print "###### End IdP request body"
 
+    # make a handler that does not raise an error on 401
+    class NotAuthHandler(urllib2.HTTPSHandler):
+	def http_error_401(self, request, response, code, msg, hdrs):
+	    return response
+    notauthhandler = NotAuthHandler()
+    if options.debug:
+	notauthhandler.set_http_debuglevel(1)
+    notauthopener = urllib2.build_opener(notauthhandler)
+
     wwwauthenticate = ""
+    unauthidpurl = ""
     if options.kerberos:
-        # try Kerberos first, expect back a 401 Not authorized
+	# try Kerberos first
+	unauthidpurl = idpkrburl
+    elif options.noprompt:
+	# this should be disallowed above since noprompt implies kerberos
+	fatal("programming error - neither kerberos nor prompt selected")
+    else:
+	unauthidpurl = idpurl
 
-	# make a handler that does not raise an error on 401
-	class NotAuthHandler(urllib2.HTTPSHandler):
-	    def http_error_401(self, request, response, code, msg, hdrs):
-		return response
-	notauthopener = urllib2.build_opener(NotAuthHandler)
+    if options.verbose:
+	print "Making unauthorized request to IdP " + unauthidpurl
+    idprequest = urllib2.Request(url=unauthidpurl)
+    try:
+	idphandle = notauthopener.open(idprequest)
+    except Exception, e:
+	fatal("Failure on first (unauthorized) request to IdP %s: %s" % (unauthidpurl, e))
 
-	if options.debug:
-	    print "###### Making unauthorized request to IdP " + idpkrburl
-	idprequest = urllib2.Request(url=idpkrburl)
-        try:
-	    idphandle = notauthopener.open(idprequest)
-	except Exception, e:
-	    fatal("Failure on first (unauthorized) request from IdP %s: %s" % (idpkrburl, e))
+    if options.debug:
+	print "###### Begin IdP response to unauthorized request"
+	print idphandle.info()
+	print "###### End IdP response to unauthorized request"
 
-	if options.debug:
-	    print "###### Begin IdP response to unauthorized request"
-	    print idphandle.info()
-	    print "###### End IdP response to unauthorized request"
+    if idphandle.getcode() != 401:
+	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, idphandle.getcode()))
+    wwwauthenticate = www_auth(idphandle)
 
-	if idphandle.getcode() != 401:
-	    fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, idphandle.getcode()))
-
-	wwwauthenticate = www_auth(idphandle)
+    idphandle = None
+    if options.kerberos:
 	if 'negotiate' in wwwauthenticate:
 	    service = "HTTP@" + urlparse.urlsplit(idpkrburl).hostname
 	    if options.debug:
@@ -235,20 +271,45 @@ def main():
 	    __, krb_context = kerberos.authGSSClientInit(service)
 	    kerberos.authGSSClientStep(krb_context, "")
 	    negotiate_details = kerberos.authGSSClientResponse(krb_context)
-	    headers = {"Authorization": "Negotiate " + negotiate_details}
+	    headers = {
+		'Content-Type': 'text/xml',
+		'Authorization': 'Negotiate ' + negotiate_details
+	    }
 
 	    # Redo it with kerberos, sending the AuthnRequest in a POST
-	    if options.debug:
-		print "###### Making authorized request to IdP " + idpkrburl
-		for header in headers:
-		    print header + ': ' + headers[header]
+	    if options.verbose:
+		print "Making kerberized request to IdP " + idpkrburl
 
-	    idprequest = urllib2.Request(idpkrburl, headers=headers,
-						data=idpbody)
+	    idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
 	    try:
 		idphandle = opener.open(idprequest)
 	    except Exception, e:
+		idphandle = None
 		fatal("Failure on response from IdP %s: %s" % (idpkrburl, e))
+
+    if not options.noprompt and (idphandle == None):
+	if idpurl == unauthidpurl:
+	    if 'basic' not in wwwauthenticate:
+		fatal("IdP does not support password authentication")
+	# else assume that with two servers that the primary server
+	#  supports basic authentication
+
+	# ask for password
+	password = getpass.getpass(options.promptstr.replace("%username",options.username) + ': ')
+	base64string = base64.encodestring('%s:%s' % (options.username, password)).replace('\n', '')
+	headers = {
+	    'Content-Type': 'text/xml',
+	    'Authorization': 'Basic ' + base64string
+	}
+
+	# POST the AuthnRequest to the IDP
+	if options.verbose:
+	    print "Making authorized request to IdP " + idpurl
+	idprequest = urllib2.Request(idpurl, headers=headers, data=idpbody)
+	try:
+	    idphandle = opener.open(idprequest)
+	except Exception, e:
+	    fatal("Failure on response from IdP %s: %s" % (idpurl, e))
 
 if __name__ == '__main__':
     main()
