@@ -19,13 +19,18 @@ import os
 import re
 sys.path.append('lxml.egg')
 from lxml import etree
+import urllib
 import urllib2
 import urlparse
 import cookielib
+import Cookie
 import kerberos
 import getpass
 import base64
 import StringIO
+import string
+import random
+from OpenSSL import crypto
 
 from optparse import OptionParser
 
@@ -68,6 +73,7 @@ def checkRequiredOptions(options, parser):
 	usage(parser, "Missing required parameters: " + str(missing_options))
 
 def main():
+    hours = 168 # make option later
     usagestr = "usage: %prog [options]"
     parser = OptionParser(usage=usagestr, version=version)
 
@@ -121,7 +127,7 @@ def main():
 	options.kerberos = True
 
     # Set up https handler/opener with cookies
-    cookiejar = cookielib.LWPCookieJar()
+    cookiejar = cookielib.CookieJar()
     cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
     httpshandler = urllib2.HTTPSHandler()
     if options.debug:
@@ -178,7 +184,9 @@ def main():
 	fatal("first request to SP %s failed: %s" % (options.spurl,e))
     
     spetree = etree.XML(sphandle.read())
-    sphandle.close()
+
+    # Don't close the sphandle because we'll be using the connection
+    #   to the SP again later.
 
     if options.debug:
 	print "##### Begin SP response"
@@ -194,13 +202,13 @@ def main():
 
     # pull out the RelayState
     try:
-	relaystate = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
+	relayState = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
     except Exception, e:
 	fatal("Unable to parse RelayState element from SP response: %s" % e)
 
     if options.debug:
 	print "###### Begin RelayState element"
-	print etree.tostring(relaystate, pretty_print=True)
+	print etree.tostring(relayState, pretty_print=True)
 	print "###### End RelayState element"
 
     # pull out the responseConsumerURL
@@ -250,19 +258,21 @@ def main():
 	print "Making unauthorized request to IdP " + unauthidpurl
     idprequest = urllib2.Request(url=unauthidpurl)
     try:
-	idphandle = notauthopener.open(idprequest)
+	notauthidphandle = notauthopener.open(idprequest)
     except Exception, e:
 	fatal("Failure on first (unauthorized) request to IdP %s: %s" % (unauthidpurl, e))
 
     if options.debug:
 	print "###### Begin IdP response to unauthorized request"
-	print idphandle.info()
+	print notauthidphandle.info()
 	print "###### End IdP response to unauthorized request"
 
-    if idphandle.getcode() != 401:
-	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, idphandle.getcode()))
-    wwwauthenticate = www_auth(idphandle)
-    idphandle.close()
+    if notauthidphandle.getcode() != 401:
+	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, notauthidphandle.getcode()))
+    wwwauthenticate = www_auth(notauthidphandle)
+
+    # Don't close the notauthidphandle so the connection will stay open
+    #  for the authorized connection.
 
     idphandle = None
     if options.kerberos:
@@ -293,8 +303,11 @@ def main():
 	if idpurl == unauthidpurl:
 	    if 'basic' not in wwwauthenticate:
 		fatal("IdP does not support password authentication")
-	# else assume that with two servers that the primary server
-	#  supports basic authentication
+	else:
+	    # won't be using the connection to the kerberos server, close it
+	    notauthidphandle.close()
+	    # assume that with two servers that the primary server
+	    #  supports basic authentication
 
 	# ask for password
 	password = getpass.getpass(options.promptstr.replace("%username",options.username) + ': ')
@@ -320,6 +333,94 @@ def main():
 	print "###### Begin IdP response"
 	print etree.tostring(idpetree, pretty_print=True)
 	print "###### End IdP response"
+
+    # pull out the AsssertionConsumerServiceURL
+    try:
+	assertionConsumerServiceURL = idpetree.xpath("/S:Envelope/S:Header/ecp:Response/@AssertionConsumerServiceURL", namespaces=namespaces)[0]
+    except Exception, e:
+	fatal("Unable to parse AssertionConsumerServiceURL from IdP response: %s" % e)
+
+    if options.debug:
+	print "###### Begin AssertionConsumerServiceURL attribute"
+	print assertionConsumerServiceURL
+	print "###### End AssertionConsumerServiceURL attribute"
+
+    if assertionConsumerServiceURL != responseConsumerURL:
+	# IdP's response doesn't match SP's expectation
+	if options.verbose:
+	    print "Telling SP that IdP had a response error"
+        soapfault = """
+            <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+               <S:Body>
+                 <S:Fault>
+                    <faultcode>S:Server</faultcode>
+                    <faultstring>responseConsumerURL from SP and assertionConsumerServiceURL from IdP do not match</faultstring>
+                 </S:Fault>
+               </S:Body>
+            </S:Envelope>
+            """
+        headers = { 'Content-Type' : 'application/vnd.paos+xml' }
+	request = urllib2.Request(responseConsumerURL, headers=headers, data=soapfault)
+        # POST the fault to the SP but ignore any failure
+        try:
+            handle = opener.open(request)
+        except Exception, e:
+            pass
+	handle.close()
+
+	fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (assertionConsumerServiceURL, responseConsumerURL))
+
+    # replace the header of the idp response with the relay state sent by the
+    #  Assertion Consumer (which is on the SP)
+    acrequestbody = idpetree
+    acrequestbody[0][0] = relayState
+    acbody=etree.tostring(acrequestbody)
+
+    if options.debug:
+	print "###### Begin SP Assertion Consumer body"
+        print etree.tostring(acrequestbody, pretty_print=True)
+	print "###### End SP Assertion Consumer body"
+
+    if options.verbose:
+	print "Sending response to Assertion Consumer " + assertionConsumerServiceURL
+    headers = { 'Content-Type' : 'application/vnd.paos+xml' }
+    acrequest = urllib2.Request(assertionConsumerServiceURL, headers=headers, data=acbody)
+    try:
+	achandle = opener.open(acrequest)
+    except Exception, e:
+	fatal("Failure on response from assertion consumer %s: %s" % (assertionConsumerServiceURL, e))
+
+    # Ignore the response body. We only want the cookie which the opener
+    #   has already stored in the cookiejar.
+    # Don't close the handle because there's one more request to the SP
+
+    # Add a 10-character random Cross Site Request Forgery prevention cookie.
+    # It also has to be a form value in order to pass the CILogon CSRF check.
+    csrfstr = string.join(
+	(random.choice(string.ascii_lowercase+string.digits) for _ in range(10)),
+	'')
+    csrfcookie = Cookie.SimpleCookie()
+    csrfcookie["CSRF"] = csrfstr
+    csrfcookie['CSRF']['path'] = '/'
+    csrfcookie['CSRF']['domain'] = urlparse.urlsplit(spurl).hostname
+    csrfcookie['CSRF']['secure'] = True
+    csrfcookie['CSRF']['version'] = 1
+    cookiejar.set_cookie(csrfcookie)
+
+    # generate a Certificate Signing Request
+    key = crypto.PKey()
+    key.generate_key(crypto.TYPE_RSA,2048)
+    csreq = crypto.X509Req()
+    csreq.set_pubkey(key)
+    csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
+
+    formvars = {
+	'CSRF' : csrfstr,
+	'submit' : 'certreq',
+	'certreq' : csr,
+	'certlifetime' : hours
+    }
+
 
 if __name__ == '__main__':
     main()
