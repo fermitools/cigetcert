@@ -1,15 +1,17 @@
 #!/usr/bin/env python2.6
-
+#
+# cigetcert gets an X.509 certificate from an SP using the ECP profile.
+# Optionally it can also get a grid proxy certificate and/or transfer
+#   the proxy to MyProxy.
+#
 # Acronyms used:
 #  SP - Service Provider (cilogon)
 #  IdP - Identity Provider
 #  SAML - Security Assertion Markup Language
 #  ECP - Enhanced Client or Proxy SAML Profile
-
 #
-# cigetcert gets an X.509 certificate from an SP using the ECP profile.
-# Optionally it can also get a grid proxy certificate and/or transfer
-#   the proxy to MyProxy.
+# Author: Dave Dykstra dwd@fnal.gov
+
 
 prog = "cigetcert"
 version = "0.1"
@@ -38,8 +40,8 @@ from OpenSSL import crypto
 from optparse import OptionParser
 
 config = {
-    "spurl" : "https://test.cilogon.org/secure",
-    "idplisturl" : "https://test.cilogon.org/include/ecpidps.txt"
+    "spurl" : "https://ecp.cilogon.org/secure/getcert",
+    "idplisturl" : "https://cilogon.org/include/ecpidps.txt"
 }
 
 def usage(parser, msg):
@@ -109,8 +111,12 @@ def main():
                       help="password prompt string")
     parser.add_option("-u", "--username", 
                       action="store", dest="username", metavar="str",
-		      default=os.getenv("LOGNAME"),
+		      default="$LOGNAME",
                       help="username for authentication")
+    parser.add_option("-o", "--out", 
+                      action="store", dest="out", metavar="path",
+		      default="/tmp/x509up_u%uid",
+                      help="File path to save certificate and key chain")
 
     # add default value (if any) to the help messages that are strings
     for option in parser.option_list:
@@ -184,6 +190,8 @@ def main():
 	'Accept' : 'text/html; application/vnd.paos+xml',
 	'PAOS'   : 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
     }
+    if not options.spurl.endswith('/'):
+	options.spurl += '/'
     if options.verbose:
 	print "Requesting authorization from SP " + options.spurl
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
@@ -312,8 +320,9 @@ def main():
 	    pass
 
 	# ask for password
-	password = getpass.getpass(options.promptstr.replace("%username",options.username) + ': ')
-	base64string = base64.encodestring('%s:%s' % (options.username, password)).replace('\n', '')
+	username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
+	password = getpass.getpass(options.promptstr.replace("%username",username) + ': ')
+	base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
 	headers = {
 	    'Content-Type': 'text/xml',
 	    'Authorization': 'Basic ' + base64string
@@ -448,6 +457,17 @@ def main():
 	print "###### Begin cert"
         print cert
 	print "###### End cert"
+    if not cert.startswith('-----BEGIN CERTIFICATE-----'):
+	fatal("response from SP does not contain a certificate")
+
+    out = options.out.replace("%uid", str(os.getuid()))
+
+    if options.verbose:
+	print "Storing certificate chain in " + out
+    with os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w') as handle:
+      handle.write(cert)
+      handle.write('\n')
+      handle.write(privkey)
 
 if __name__ == '__main__':
     main()
