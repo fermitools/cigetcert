@@ -23,13 +23,16 @@ import urllib
 import urllib2
 import urlparse
 import cookielib
-import Cookie
 import kerberos
 import getpass
 import base64
 import StringIO
 import string
 import random
+sys.path.append('cffi.egg')
+sys.path.append('enum.egg')
+sys.path.append('cryptography.egg')
+sys.path.append('OpenSSL.egg')
 from OpenSSL import crypto
 
 from optparse import OptionParser
@@ -132,7 +135,14 @@ def main():
     httpshandler = urllib2.HTTPSHandler()
     if options.debug:
 	httpshandler.set_http_debuglevel(1)
-    opener = urllib2.build_opener(cookiehandler, httpshandler)
+    # need to avoid redirects
+    class NoRedirectHandler(urllib2.HTTPRedirectHandler):
+	def http_error_302(self, request, response, code, msg, hdrs):
+	    if options.debug:
+		print "###### Ignoring redirect"
+	    return response
+    noredirecthandler = NoRedirectHandler()
+    opener = urllib2.build_opener(cookiehandler, noredirecthandler, httpshandler)
 
     ### Look up the IdP URL
     if options.verbose:
@@ -143,7 +153,6 @@ def main():
     except Exception, e:
 	fatal("fetch of idplist from %s failed: %s" % (options.idplisturl, e))
     idplist = idplisthandle.read()
-    idplisthandle.close()
 
     idpurl = None
     idpkrburl = None
@@ -184,9 +193,6 @@ def main():
 	fatal("first request to SP %s failed: %s" % (options.spurl,e))
     
     spetree = etree.XML(sphandle.read())
-
-    # Don't close the sphandle because we'll be using the connection
-    #   to the SP again later.
 
     if options.debug:
 	print "##### Begin SP response"
@@ -271,9 +277,6 @@ def main():
 	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, notauthidphandle.getcode()))
     wwwauthenticate = www_auth(notauthidphandle)
 
-    # Don't close the notauthidphandle so the connection will stay open
-    #  for the authorized connection.
-
     idphandle = None
     if options.kerberos:
 	if 'negotiate' in wwwauthenticate:
@@ -304,10 +307,9 @@ def main():
 	    if 'basic' not in wwwauthenticate:
 		fatal("IdP does not support password authentication")
 	else:
-	    # won't be using the connection to the kerberos server, close it
-	    notauthidphandle.close()
 	    # assume that with two servers that the primary server
 	    #  supports basic authentication
+	    pass
 
 	# ask for password
 	password = getpass.getpass(options.promptstr.replace("%username",options.username) + ': ')
@@ -327,7 +329,6 @@ def main():
 	    fatal("Failure on response from IdP %s: %s" % (idpurl, e))
 
     idpetree = etree.XML(idphandle.read())
-    idphandle.close()
 
     if options.debug:
 	print "###### Begin IdP response"
@@ -366,7 +367,6 @@ def main():
             handle = opener.open(request)
         except Exception, e:
             pass
-	handle.close()
 
 	fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (assertionConsumerServiceURL, responseConsumerURL))
 
@@ -381,6 +381,7 @@ def main():
         print etree.tostring(acrequestbody, pretty_print=True)
 	print "###### End SP Assertion Consumer body"
 
+
     if options.verbose:
 	print "Sending response to Assertion Consumer " + assertionConsumerServiceURL
     headers = { 'Content-Type' : 'application/vnd.paos+xml' }
@@ -392,35 +393,61 @@ def main():
 
     # Ignore the response body. We only want the cookie which the opener
     #   has already stored in the cookiejar.
-    # Don't close the handle because there's one more request to the SP
+
+    shibcookie = cookiejar.make_cookies(achandle, acrequest)[0]
+    if options.debug:
+	print "###### Begin shibboleth cookie"
+        print [shibcookie]
+	print "###### End shibboleth cookie"
 
     # Add a 10-character random Cross Site Request Forgery prevention cookie.
     # It also has to be a form value in order to pass the CILogon CSRF check.
     csrfstr = string.join(
 	(random.choice(string.ascii_lowercase+string.digits) for _ in range(10)),
 	'')
-    csrfcookie = Cookie.SimpleCookie()
-    csrfcookie["CSRF"] = csrfstr
-    csrfcookie['CSRF']['path'] = '/'
-    csrfcookie['CSRF']['domain'] = urlparse.urlsplit(spurl).hostname
-    csrfcookie['CSRF']['secure'] = True
-    csrfcookie['CSRF']['version'] = 1
-    cookiejar.set_cookie(csrfcookie)
-
-    # generate a Certificate Signing Request
-    key = crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA,2048)
-    csreq = crypto.X509Req()
-    csreq.set_pubkey(key)
-    csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
-
-    formvars = {
-	'CSRF' : csrfstr,
-	'submit' : 'certreq',
-	'certreq' : csr,
-	'certlifetime' : hours
+    headers = {
+	'Content-Type' : 'application/x-www-form-urlencoded',
+	'Cookie' : 'CSRF=' + csrfstr + '; ' +
+	    shibcookie.name + '=' + shibcookie.value
     }
 
+    # generate a Certificate Signing Request
+    if options.verbose:
+	print "Generating Certificate Signing Request"
+    key = crypto.PKey()
+    key.generate_key(crypto.TYPE_RSA,2048)
+    privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+    csreq = crypto.X509Req()
+    csreq.set_pubkey(key)
+    csreq.sign(key, "sha256")
+    csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
+    if options.debug:
+	print "###### Begin csr"
+        print csr
+	print "###### End csr"
+
+    certformvars = [
+	('submit' , 'certreq'),
+	('CSRF' , csrfstr),
+	('certlifetime' , hours),
+	('certreq' , csr)
+    ]
+    certformdata = urllib.urlencode(certformvars)
+
+    if options.verbose:
+	print "Requesting certificate from SP " + options.spurl
+    spcertrequest = urllib2.Request(url=options.spurl,data=certformdata, 
+    		headers=headers)
+    try:
+	spcerthandle = opener.open(spcertrequest)
+    except Exception, e:
+	fatal("cert request to SP %s failed: %s" % (options.spurl,e))
+
+    cert = spcerthandle.read()
+    if options.debug:
+	print "###### Begin cert"
+        print cert
+	print "###### End cert"
 
 if __name__ == '__main__':
     main()
