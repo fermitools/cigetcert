@@ -35,6 +35,9 @@ sys.path.append('cffi.egg')
 sys.path.append('enum.egg')
 sys.path.append('cryptography.egg')
 sys.path.append('OpenSSL.egg')
+import warnings
+# this ignores a python2.6 deprecation warning in cryptography
+warnings.filterwarnings("ignore",category=DeprecationWarning)
 from OpenSSL import crypto
 
 from optparse import OptionParser
@@ -107,7 +110,7 @@ def main():
                       help="do not prompt for password (implies --kerberos)")
     parser.add_option("-p", "--promptstr", 
                       action="store", dest="promptstr", metavar="str",
-		      default="Password for %username",
+		      default="Password for %username@%realm",
                       help="password prompt string")
     parser.add_option("-u", "--username", 
                       action="store", dest="username", metavar="str",
@@ -268,22 +271,25 @@ def main():
     else:
 	unauthidpurl = idpurl
 
-    if options.verbose:
-	print "Making unauthorized request to IdP " + unauthidpurl
-    idprequest = urllib2.Request(url=unauthidpurl)
-    try:
-	notauthidphandle = notauthopener.open(idprequest)
-    except Exception, e:
-	fatal("Failure on first (unauthorized) request to IdP %s: %s" % (unauthidpurl, e))
+    def dounauthrequest(url):
+	if options.verbose:
+	    print "Making unauthorized request to IdP " + url
+	idprequest = urllib2.Request(url=url)
+	try:
+	    notauthidphandle = notauthopener.open(idprequest)
+	except Exception, e:
+	    fatal("Failure on (deliberately) unauthorized request to IdP %s: %s" % (url, e))
 
-    if options.debug:
-	print "###### Begin IdP response to unauthorized request"
-	print notauthidphandle.info()
-	print "###### End IdP response to unauthorized request"
+	if options.debug:
+	    print "###### Begin IdP response to unauthorized request"
+	    print notauthidphandle.info()
+	    print "###### End IdP response to unauthorized request"
 
-    if notauthidphandle.getcode() != 401:
-	fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (idpkrburl, notauthidphandle.getcode()))
-    wwwauthenticate = www_auth(notauthidphandle)
+	if notauthidphandle.getcode() != 401:
+	    fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (url, notauthidphandle.getcode()))
+	return www_auth(notauthidphandle)
+
+    wwwauthenticate = dounauthrequest(unauthidpurl)
 
     idphandle = None
     if options.kerberos:
@@ -292,36 +298,52 @@ def main():
 	    if options.debug:
 		print "###### Initializing kerberos context for " + service
 	    __, krb_context = kerberos.authGSSClientInit(service)
-	    kerberos.authGSSClientStep(krb_context, "")
-	    negotiate_details = kerberos.authGSSClientResponse(krb_context)
-	    headers = {
-		'Content-Type': 'text/xml',
-		'Authorization': 'Negotiate ' + negotiate_details
-	    }
-
-	    # Redo it with kerberos, sending the AuthnRequest in a POST
-	    if options.verbose:
-		print "Making kerberized request to IdP " + idpkrburl
-
-	    idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
 	    try:
-		idphandle = opener.open(idprequest)
+		kerberos.authGSSClientStep(krb_context, "")
 	    except Exception, e:
-		idphandle = None
-		fatal("Failure on response from IdP %s: %s" % (idpkrburl, e))
+		if options.noprompt:
+		    fatal("Kerberos initialization failed: %s" % e)
+		if options.verbose:
+		    print "Kerberos initialization failed: %s" % e
+		    print "Trying password"
+		else:
+		    print "Unable to obtain kerberos credentials, trying password"
+	    else:
+		negotiate_details = kerberos.authGSSClientResponse(krb_context)
+		headers = {
+		    'Content-Type': 'text/xml',
+		    'Authorization': 'Negotiate ' + negotiate_details
+		}
+
+		# Redo it with kerberos, sending the AuthnRequest in a POST
+		if options.verbose:
+		    print "Making kerberized request to IdP " + idpkrburl
+
+		idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
+		try:
+		    idphandle = opener.open(idprequest)
+		except Exception, e:
+		    idphandle = None
+		    fatal("Failure on response from IdP %s: %s" % (idpkrburl, e))
 
     if not options.noprompt and (idphandle == None):
-	if idpurl == unauthidpurl:
-	    if 'basic' not in wwwauthenticate:
-		fatal("IdP does not support password authentication")
-	else:
-	    # assume that with two servers that the primary server
-	    #  supports basic authentication
-	    pass
+	if idpurl != unauthidpurl:
+	    wwwauthenticate = dounauthrequest(idpurl)
+
+	if 'basic' not in wwwauthenticate:
+	    fatal("IdP does not support password authentication")
 
 	# ask for password
 	username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
-	password = getpass.getpass(options.promptstr.replace("%username",username) + ': ')
+	promptstr = options.promptstr.replace("%username",username)
+	if (promptstr.find('%realm') != -1):
+	    basic = wwwauthenticate['basic']
+	    if basic.find('realm=') == -1:
+		fatal("IdP did not supply realm for password prompt")
+	    realm = re.sub('.*realm="', '', basic)
+	    realm = re.sub('".*', '', realm)
+	    promptstr = promptstr.replace("%realm", realm)
+	password = getpass.getpass(promptstr + ': ')
 	base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
 	headers = {
 	    'Content-Type': 'text/xml',
