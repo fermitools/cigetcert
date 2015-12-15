@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.6
+#!/usr/bin/env python
 #
 # cigetcert gets an X.509 certificate from an SP using the ECP profile.
 # Optionally it can also get a grid proxy certificate and/or transfer
@@ -19,7 +19,6 @@ version = "0.1"
 import sys
 import os
 import re
-sys.path.append('lxml.egg')
 from lxml import etree
 import urllib
 import urllib2
@@ -31,13 +30,7 @@ import base64
 import StringIO
 import string
 import random
-sys.path.append('cffi.egg')
-sys.path.append('enum.egg')
-sys.path.append('cryptography.egg')
-sys.path.append('OpenSSL.egg')
 import warnings
-# this ignores a python2.6 deprecation warning in cryptography
-warnings.filterwarnings("ignore",category=DeprecationWarning)
 from OpenSSL import crypto
 
 from optparse import OptionParser
@@ -67,7 +60,12 @@ def resolve_xpath(xpath, namespace):
 def www_auth(handle):
     auth_fields = {}
     for field in handle.info().getheader("www-authenticate", "").split(","):
-	kind, __, details = field.strip().partition(" ")
+	field = field.strip()
+	space = field.find(" ")
+	if space == -1:
+	    space = len(field)
+	kind = field[0:space]
+	details = field[space+1:]
 	auth_fields[kind.lower()] = details.strip()
     return auth_fields
 
@@ -285,8 +283,8 @@ def main():
 	    print notauthidphandle.info()
 	    print "###### End IdP response to unauthorized request"
 
-	if notauthidphandle.getcode() != 401:
-	    fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (url, notauthidphandle.getcode()))
+	if notauthidphandle.code != 401:
+	    fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (url, notauthidphandle.code))
 	return www_auth(notauthidphandle)
 
     wwwauthenticate = dounauthrequest(unauthidpurl)
@@ -294,7 +292,9 @@ def main():
     idphandle = None
     if options.kerberos:
 	if 'negotiate' in wwwauthenticate:
-	    service = "HTTP@" + urlparse.urlsplit(idpkrburl).hostname
+	    netloc = urlparse.urlsplit(idpkrburl)[1]
+	    hostname = re.sub(":.*", "", netloc)
+	    service = "HTTP@" + hostname
 	    if options.debug:
 		print "###### Initializing kerberos context for " + service
 	    __, krb_context = kerberos.authGSSClientInit(service)
@@ -450,7 +450,10 @@ def main():
     privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
     csreq = crypto.X509Req()
     csreq.set_pubkey(key)
-    csreq.set_version(0)
+    if 'set_version' in dir(csreq):
+	# this function isn't in python2.4, but cilogon has seen
+	#  problems without it
+	csreq.set_version(0)
     csreq.sign(key, "sha256")
     csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
     if options.debug:
@@ -487,10 +490,10 @@ def main():
 
     if options.verbose:
 	print "Storing certificate chain in " + out
-    with os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w') as handle:
-      handle.write(cert)
-      handle.write('\n')
-      handle.write(privkey)
+    handle = os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w')
+    handle.write(cert)
+    handle.write('\n')
+    handle.write(privkey)
 
 if __name__ == '__main__':
     main()
