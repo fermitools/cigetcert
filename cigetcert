@@ -450,6 +450,7 @@ def main():
     privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
     csreq = crypto.X509Req()
     csreq.set_pubkey(key)
+    csreq.set_version(0)
     csreq.sign(key, "sha256")
     csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
     if options.debug:
