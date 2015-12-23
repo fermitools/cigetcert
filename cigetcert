@@ -98,6 +98,9 @@ def x509name_to_str(name):
 
 # Note: the upstream match_hostname function has been modified to work with
 # pyOpenSSL X509 objects instead of the SSLSocket.getpeercert() format.
+# Even though this has code to support python2.4, other code in this
+# file requires a pyOpenSSL version newer than typically shipped with
+# python-2.4.
 
 #############
 # ipaddress has been backported to 2.6+ in pypi.  If it is installed on the
@@ -265,7 +268,7 @@ class _SslSocketWrapper(object):
 	if _SslSocketWrapperSkipClose:
 	    # avoid premature closure.
 	    # I don't like leaving the file descriptors open but without this
-	    #  it doesn't work.  They'll all get closed at program completion
+	    #  it doesn't work.  They'll all get closed at program completion.
 	    return
 	return self._sock.close()
 
@@ -281,9 +284,12 @@ class _SslSocketWrapper(object):
 #  default, and the requests library with 2.6 only supports CA cert bundles.
 
 def verify_cb(conn, x509, errno, errdepth, retcode):
+    global options
     if errno != 0:
 	raise CertificateError("certificate at depth %d invalid: %s" % 
 		(errdepth, crypto.X509_verify_cert_error_string(errno)))
+    if options.debug:
+	print "ssl cert validation passed at depth %d" % errdepth
     return True
 
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
@@ -299,7 +305,10 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         self.capath = capath
 
     def connect(self):
-	context = SSL.Context(SSL.SSLv23_METHOD)
+	context = SSL.Context(SSL.TLSv1_METHOD)
+	# not sure the following option is needed but saw it in example at
+	# http://blog.san-ss.com.ar/2012/05/validating-ssl-certificate-in-python.html
+	context.set_options(SSL.OP_NO_SSLv2)
 	if self.cert_file != None:
 	    context.use_certificate_file(self.cert_file)
 	if self.key_file != None:
@@ -312,6 +321,8 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
 	cert = sslsock.get_peer_certificate()
 	hostname = self.host.split(':', 0)[0]
 	match_hostname(cert, hostname)
+	if options.debug:
+	    print "ssl cert matched host name " + hostname
 	self.sock = _SslSocketWrapper(sslsock)
 
 class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
@@ -326,6 +337,10 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
             return CertValidatingHTTPSConnection(host, **full_kwargs)
 
         return self.do_open(http_class_wrapper, req)
+
+    # also don't raise an exception for 401 Not authorized errors
+    def http_error_401(self, request, response, code, msg, hdrs):
+	return response
 
 ###  cigetcert main ####
 def main():
@@ -532,15 +547,6 @@ def main():
         print etree.tostring(idprequestbody, pretty_print=True)
 	print "###### End IdP request body"
 
-    # make a handler that does not raise an error on 401
-    class NotAuthHandler(urllib2.HTTPSHandler):
-	def http_error_401(self, request, response, code, msg, hdrs):
-	    return response
-    notauthhandler = NotAuthHandler()
-    if options.debug:
-	notauthhandler.set_http_debuglevel(1)
-    notauthopener = urllib2.build_opener(notauthhandler)
-
     wwwauthenticate = ""
     unauthidpurl = ""
     if options.kerberos:
@@ -557,7 +563,7 @@ def main():
 	    print "Making unauthorized request to IdP " + url
 	idprequest = urllib2.Request(url=url)
 	try:
-	    notauthidphandle = notauthopener.open(idprequest)
+	    notauthidphandle = opener.open(idprequest)
 	except Exception, e:
 	    fatal("Failure on (deliberately) unauthorized request to IdP %s: %s" % (url, e))
 
