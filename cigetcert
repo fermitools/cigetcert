@@ -39,9 +39,10 @@ from OpenSSL import SSL
 import shlex
 from optparse import OptionParser
 
-config = {
+defaults = {
     "spurl" : "https://ecp.cilogon.org/secure/getcert",
-    "idplisturl" : "https://cilogon.org/include/ecpidps.txt"
+    "idplisturl" : "https://cilogon.org/include/ecpidps.txt",
+    "capath" : "/etc/grid-security/certificates"
 }
 
 # make this global
@@ -314,6 +315,7 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
 	if self.key_file != None:
 	    context.use_privatekey_file(self.key_file)
 	context.set_verify(SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT, verify_cb)
+	context.set_default_verify_paths()
 	context.load_verify_locations(self.ca_certs, self.capath)
 	sslsock = SSL.Connection(context, socket.socket(socket.AF_INET, socket.SOCK_STREAM))
 	sslsock.connect((self.host, self.port))
@@ -340,6 +342,9 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 
     # also don't raise an exception for 401 Not authorized errors
     def http_error_401(self, request, response, code, msg, hdrs):
+	global options
+	if options.debug:
+	    print "###### Ignoring Not authorized"
 	return response
 
 ###  cigetcert main ####
@@ -366,12 +371,16 @@ def main():
                       help="Institution name (required)")
     parser.add_option("", "--idplisturl", 
                       action="store", dest="idplisturl", metavar="URL",
-		      default=config['idplisturl'],
+		      default=defaults['idplisturl'],
                       help="Identity Provider list URL")
     parser.add_option("", "--spurl", 
                       action="store", dest="spurl", metavar="URL",
-		      default=config['spurl'],
+		      default=defaults['spurl'],
                       help="Service Provider URL")
+    parser.add_option("", "--capath", 
+                      action="store", dest="capath", metavar="path",
+		      default=defaults['capath'],
+                      help="Certifying Authority certificates and CRLs directory")
     parser.add_option("-k", "--kerberos", 
                       action="store_true", dest="kerberos", default=False,
                       help="prefer kerberos authentication if available")
@@ -403,9 +412,7 @@ def main():
     # Set up https handler/opener with cookies
     cookiejar = cookielib.CookieJar()
     cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
-    httpshandler = VerifiedHTTPSHandler(
-	ca_certs='/etc/pki/tls/certs/ca-bundle.crt',
-	capath='/etc/grid-security/certificates')
+    httpshandler = VerifiedHTTPSHandler(capath=options.capath)
     if options.debug:
 	httpshandler.set_http_debuglevel(1)
     # need to avoid redirects
