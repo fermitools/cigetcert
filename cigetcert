@@ -556,6 +556,7 @@ def main():
 
     wwwauthenticate = ""
     unauthidpurl = ""
+    authidpurl = ""
     if options.kerberos:
 	# try Kerberos first
 	unauthidpurl = idpkrburl
@@ -615,6 +616,7 @@ def main():
 		if options.verbose:
 		    print "Making kerberized request to IdP " + idpkrburl
 
+		authidpurl = idpkrburl
 		idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
 		try:
 		    idphandle = opener.open(idprequest)
@@ -649,11 +651,18 @@ def main():
 	# POST the AuthnRequest to the IDP
 	if options.verbose:
 	    print "Making authorized request to IdP " + idpurl
+	authidpurl = idpurl
 	idprequest = urllib2.Request(idpurl, headers=headers, data=idpbody)
 	try:
 	    idphandle = opener.open(idprequest)
 	except Exception, e:
 	    fatal("Failure on response from IdP %s: %s" % (idpurl, e))
+
+    if idphandle.code != 200:
+	# in case unauthorized the second try
+	if idphandle.code == 401:
+	    fatal("authorization failed")
+	fatal("unexpected http response code from IdP %s: %d" % (authidpurl, idphandle.code))
 
     idpetree = etree.XML(idphandle.read())
 
