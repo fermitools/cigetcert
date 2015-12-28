@@ -408,7 +408,7 @@ def main():
 			weekstr + " if %hours > " + weekstr + "]")
     parser.add_option("", "--proxy", 
                       action="store_true", default=False,
-                      help="store proxy certificate instead of certificate" + \
+                      help="store proxy certificate instead of certificate in %out" + \
 		        " [implied when %hours does not match %proxyhours]")
     parser.add_option("", "--myproxyserver", 
                       metavar="Host",
@@ -419,10 +419,10 @@ def main():
     parser.add_option("", "--myproxyreader", 
                       metavar="DN",
                       help="regular expression of certificate Distinguished" + \
-		      	    " Names permitted to read from MyProxy")
+		      	    " Names permitted to fetch %username proxy from MyProxy")
     parser.add_option("", "--myproxyhours", 
                       type="int", metavar="num",
-                      help="max lifetime hours of a proxy read from MyProxy" + \
+                      help="max lifetime hours of a proxy fetched from MyProxy" + \
 			" [default: %proxyhours]")
 
 
