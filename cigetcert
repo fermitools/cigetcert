@@ -350,55 +350,81 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 ###  cigetcert main ####
 def main():
     global options
-    hours = 168 # make option later
     usagestr = "usage: %prog [-h] [otheroptions]"
     parser = OptionParser(usage=usagestr, version=version)
 
     parser.add_option("-v", "--verbose", 
-                      action="store_true", dest="verbose", default=False,
+                      action="store_true", default=False,
                       help="write progress to stdout")
     parser.add_option("-d", "--debug", 
-                      action="store_true", dest="debug", default=False,
+                      action="store_true", default=False,
                       help="write detailed debug output to stdout (implies -v)")
     parser.add_option("-q", "--quiet", 
-                      action="store_true", dest="quiet", default=False,
+                      action="store_true", default=False,
                       help="do not print error messages")
     parser.add_option("-s", "--optserver", 
-                      action="store", dest="optserver", metavar="HostOrURL",
+                      metavar="HostOrURL",
                       help="server or URL with default %s options" % prog)
     parser.add_option("-i", "--institution", 
-                      action="store", dest="institution", metavar="Name",
+                      metavar="Name",
                       help="Institution name (required)")
     parser.add_option("", "--idplisturl", 
-                      action="store", dest="idplisturl", metavar="URL",
-		      default=defaults['idplisturl'],
+                      metavar="URL", default=defaults['idplisturl'],
                       help="Identity Provider list URL")
     parser.add_option("", "--spurl", 
-                      action="store", dest="spurl", metavar="URL",
-		      default=defaults['spurl'],
+                      metavar="URL", default=defaults['spurl'],
                       help="Service Provider URL")
     parser.add_option("", "--capath", 
-                      action="store", dest="capath", metavar="path",
-		      default=defaults['capath'],
+                      metavar="path", default=defaults['capath'],
                       help="Certifying Authority certificates and CRLs directory")
     parser.add_option("-k", "--kerberos", 
-                      action="store_true", dest="kerberos", default=False,
+                      action="store_true", default=False,
                       help="prefer kerberos authentication if available")
     parser.add_option("-n", "--noprompt", 
-                      action="store_true", dest="noprompt", default=False,
+                      action="store_true", default=False,
                       help="do not prompt for password (implies --kerberos)")
     parser.add_option("-p", "--promptstr", 
-                      action="store", dest="promptstr", metavar="str",
-		      default="Password for %username@%realm",
+                      metavar="str", default="Password for %username@%realm",
                       help="prompt string")
     parser.add_option("-u", "--username", 
-                      action="store", dest="username", metavar="str",
-		      default="$LOGNAME",
+                      metavar="str", default="$LOGNAME",
                       help="username for authentication")
     parser.add_option("-o", "--out", 
-                      action="store", dest="out", metavar="path",
-		      default="/tmp/x509up_u%uid",
-                      help="File path to save certificate and key chain")
+                      metavar="path", default="/tmp/x509up_u%uid",
+                      help="file path to save certificate and key chain")
+    weekhours = 24 * 7
+    weekstr = str(weekhours)
+    yearhours = int(24 * (365.5 + 31))
+    yearstr = str(yearhours)
+    parser.add_option("", "--hours", 
+                      type="int", metavar="num", default=weekhours,
+                      help="lifetime hours of the certificate [max: " + \
+			weekstr + " unless --myproxyserver is set, then " + \
+			yearstr + "]")
+    parser.add_option("", "--proxyhours", 
+                      type="int", metavar="num",
+                      help="lifetime hours of a proxy certificate " + \
+			"[max: "  + weekstr + "] [default: %hours, or "  + \
+			weekstr + " if %hours > " + weekstr + "]")
+    parser.add_option("", "--proxy", 
+                      action="store_true", default=False,
+                      help="store proxy certificate instead of certificate" + \
+		        " [implied when %hours does not match %proxyhours]")
+    parser.add_option("", "--myproxyserver", 
+                      metavar="Host",
+                      help="host name of MyProxy server for storing credentials")
+    parser.add_option("", "--myproxyusername", 
+                      metavar="str", default="%username",
+                      help="username on MyProxy server for naming credentials")
+    parser.add_option("", "--myproxyreader", 
+                      metavar="DN",
+                      help="regular expression of certificate Distinguished" + \
+		      	    " Names permitted to read from MyProxy")
+    parser.add_option("", "--myproxyhours", 
+                      type="int", metavar="num",
+                      help="max lifetime hours of a proxy read from MyProxy" + \
+			" [default: %proxyhours]")
+
 
     # add default value (if any) to the help messages that are strings
     for option in parser.option_list:
@@ -769,7 +795,7 @@ def main():
     certformvars = [
 	('submit' , 'certreq'),
 	('CSRF' , csrfstr),
-	('certlifetime' , hours),
+	('certlifetime' , options.hours),
 	('certreq' , csr)
     ]
     certformdata = urllib.urlencode(certformvars)
