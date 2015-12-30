@@ -14,7 +14,7 @@
 
 
 prog = "cigetcert"
-version = "0.1"
+version = "0.2"
 
 import sys
 import os
@@ -33,6 +33,8 @@ import StringIO
 import string
 import random
 import warnings
+import datetime
+import time
 from OpenSSL import crypto
 from OpenSSL import SSL
 
@@ -45,8 +47,9 @@ defaults = {
     "capath" : "/etc/grid-security/certificates"
 }
 
-# make this global
+# these are global
 options = None
+showprogress = False
 
 def usage(parser, msg):
     print >> sys.stderr, prog + ": " + msg + '\n'
@@ -56,6 +59,8 @@ def usage(parser, msg):
 def fatal(msg, code=1):
     global options
     if (options == None) or not options.quiet:
+	if showprogress:
+	    print >>sys.stderr
 	print >> sys.stderr, prog + ": " + msg + '\n'
     sys.exit(code)
 
@@ -353,19 +358,21 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 ### create a proxy certificate of a certificate ####
 # Based on code from the gridproxy library
 #  https://github.com/abbot/gridproxy/blob/master/gridproxy/__init__.py
-# which is Copyright Lev Shamardin and covered under GPL 3 license.
+# which is Copyright Lev Shamardin and covered under the GNU GPLv3 license.
 # Requires M2Crypto, where the rest of the program is pyOpenSSL so
 #  need to convert things via PEM strings
 # Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
-def generate_proxycert(certstr, privkeystr, lifesecs, limited=False):
+def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=1024):
     import M2Crypto
     import struct
-    import time
 
     cert = M2Crypto.X509.load_cert_string(certstr)
     certprivkey = M2Crypto.EVP.load_key_string(privkeystr).get_rsa()
     
-    proxyrsa = M2Crypto.RSA.gen_key(1024, 65537, lambda x: None)
+    # according to
+    #   https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29#Key_generation
+    # the exponent 65537 (2^16+1) is most efficient
+    proxyrsa = M2Crypto.RSA.gen_key(bits, 65537, lambda x: None)
     proxykey = M2Crypto.EVP.PKey()
     proxykey.assign_rsa(proxyrsa)
 
@@ -378,7 +385,7 @@ def generate_proxycert(certstr, privkeystr, lifesecs, limited=False):
     not_before.set_time(now)
     proxy.set_not_before(not_before)
     not_after = M2Crypto.ASN1.ASN1_UTCTIME()
-    not_after.set_time(now + lifesecs)
+    not_after.set_time(now + lifehours * 60 * 60)
     proxy.set_not_after(not_after)
 
     proxy.set_issuer_name(cert.get_subject())
@@ -413,6 +420,18 @@ def generate_proxycert(certstr, privkeystr, lifesecs, limited=False):
 
     return (proxy.as_pem(), proxykey.as_pem(None))
 
+## convert a generalized time string to a datetime in GMT
+def generalized_to_datetime(t):
+    # year, month, day, hour, min, second
+    # assume there's no time offset appended and that it ends with 'Z'
+    return datetime.datetime(int(t[0:4]), int(t[4:6]), int(t[6:8]),
+    	int(t[8:10]), int(t[10:12]), int(t[12:14]))
+
+# subtract the timezone seconds from datetime
+def utc_datetime_to_local_time(utc_datetime):
+    secs = int(utc_datetime.strftime('%s'))
+    return time.ctime(secs - time.timezone)
+
 ###  cigetcert main ####
 def main():
     global options
@@ -421,10 +440,10 @@ def main():
 
     parser.add_option("-v", "--verbose", 
                       action="store_true", default=False,
-                      help="write progress to stdout")
+                      help="write detailed progress to stdout")
     parser.add_option("-d", "--debug", 
                       action="store_true", default=False,
-                      help="write detailed debug output to stdout (implies -v)")
+                      help="write debug output to stdout (implies -v)")
     parser.add_option("-q", "--quiet", 
                       action="store_true", default=False,
                       help="do not print error messages")
@@ -462,6 +481,8 @@ def main():
     weekstr = str(weekhours)
     yearhours = int(24 * (365.5 + 31))
     yearstr = str(yearhours)
+    defproxyhours = weekhours
+    defproxystr = str(defproxyhours)
     parser.add_option("", "--hours", 
                       type="int", metavar="num", default=weekhours,
                       help="lifetime hours of the certificate [max: " + \
@@ -470,8 +491,8 @@ def main():
     parser.add_option("", "--proxyhours", 
                       type="int", metavar="num",
                       help="lifetime hours of a proxy certificate " + \
-			"[max: "  + weekstr + "] [default: %hours, or "  + \
-			weekstr + " if %hours > " + weekstr + "]")
+			"[max: "  + weekstr + "] [default: %hours, or " + \
+			defproxystr + " if %hours > " + weekstr + "]")
     parser.add_option("", "--proxy", 
                       action="store_true", default=False,
                       help="store proxy certificate instead of certificate in %out" + \
@@ -542,15 +563,58 @@ def main():
 
     checkRequiredOptions(options, parser)
 
+    # calculate defaults for options that are too complex for "default" keyword
+    if options.hours > weekhours:
+	if options.proxyhours == None:
+	    options.proxyhours = defproxyhours
+    elif options.proxyhours == None:
+	options.proxyhours = options.hours
+    if options.myproxyhours == None:
+	options.myproxyhours = options.proxyhours
+
+    # check for min and max
+    if options.hours < 0:
+	fatal('--hours must be non-negative')
+    if (options.hours > weekhours) and (options.myproxyserver == None):
+	fatal('--hours > ' + weekstr + ' and --myproxyserver not set')
+    if options.hours > yearhours:
+	fatal('--hours must be <= ' + yearstr)
+    if options.proxyhours < 0:
+	fatal('--proxyhours must be non-negative')
+    if options.proxyhours > weekhours:
+	fatal('--proxyhours must <= ' + weekstr)
+    if options.proxyhours > options.hours:
+	fatal('--proxyhours must <= --hours')
+    if options.myproxyhours < 0:
+	fatal('--myproxyhours must be non-negative')
+    if options.myproxyhours > options.hours:
+	fatal('--myproxyhours must <= --hours')
+
     # set implied options
     if options.debug:
 	options.verbose = True
     if options.noprompt:
 	options.kerberos = True
+    if options.hours != options.proxyhours:
+	options.proxy = True
+    global showprogress
+    if not options.quiet and not options.verbose:
+	showprogress = True
+
+    if options.myproxyserver != None:
+	print "NOTE: --myproxy* options not yet implemented, continuing"
+
+    if options.debug:
+	print "###### Durations:"
+	print "hours: " + str(options.hours)
+	print "proxyhours: " + str(options.proxyhours)
+	print "myproxyhours: " + str(options.myproxyhours)
 
     ### Look up the IdP URL
     if options.verbose:
 	print "Fetching list of IdPs from " + options.idplisturl
+    elif showprogress:
+	sys.stdout.write("Authorizing ...")
     idplistrequest = urllib2.Request(url=options.idplisturl)
     try:
 	idplisthandle = opener.open(idplistrequest)
@@ -592,6 +656,8 @@ def main():
 	options.spurl += '/'
     if options.verbose:
 	print "Requesting authorization from SP " + options.spurl
+    elif showprogress:
+	sys.stdout.write('.')
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
     try:
 	sphandle = opener.open(sprequest)
@@ -661,6 +727,8 @@ def main():
     def dounauthrequest(url):
 	if options.verbose:
 	    print "Making unauthorized request to IdP " + url
+	elif showprogress:
+	    sys.stdout.write('.')
 	idprequest = urllib2.Request(url=url)
 	try:
 	    notauthidphandle = opener.open(idprequest)
@@ -695,8 +763,8 @@ def main():
 		if options.verbose:
 		    print "Kerberos initialization failed: %s" % e
 		    print "Trying password"
-		else:
-		    print "Unable to obtain kerberos credentials, trying password"
+		elif showprogress:
+		    sys.stdout.write('.')
 	    else:
 		negotiate_details = kerberos.authGSSClientResponse(krb_context)
 		headers = {
@@ -707,6 +775,8 @@ def main():
 		# Redo it with kerberos, sending the AuthnRequest in a POST
 		if options.verbose:
 		    print "Making kerberized request to IdP " + idpkrburl
+		elif showprogress:
+		    sys.stdout.write('.')
 
 		authidpurl = idpkrburl
 		idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
@@ -733,6 +803,8 @@ def main():
 	    realm = re.sub('.*realm="', '', basic)
 	    realm = re.sub('".*', '', realm)
 	    promptstr = promptstr.replace("%realm", realm)
+	if showprogress:
+	    print
 	password = getpass.getpass(promptstr + ': ')
 	base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
 	headers = {
@@ -798,6 +870,9 @@ def main():
 
 	fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (assertionConsumerServiceURL, responseConsumerURL))
 
+    if showprogress:
+	print ' authorized'
+
     # replace the header of the idp response with the relay state sent by the
     #  Assertion Consumer (which is on the SP)
     acrequestbody = idpetree
@@ -812,6 +887,8 @@ def main():
 
     if options.verbose:
 	print "Sending response to Assertion Consumer " + assertionConsumerServiceURL
+    elif showprogress:
+	sys.stdout.write('Fetching certificate ...')
     headers = { 'Content-Type' : 'application/vnd.paos+xml' }
     acrequest = urllib2.Request(assertionConsumerServiceURL, headers=headers, data=acbody)
     try:
@@ -842,6 +919,8 @@ def main():
     # generate a Certificate Signing Request
     if options.verbose:
 	print "Generating Certificate Signing Request"
+    elif showprogress:
+	sys.stdout.write('.')
     key = crypto.PKey()
     key.generate_key(crypto.TYPE_RSA,2048)
     privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
@@ -868,6 +947,8 @@ def main():
 
     if options.verbose:
 	print "Requesting certificate from SP " + options.spurl
+    elif showprogress:
+	sys.stdout.write('.')
     spcertrequest = urllib2.Request(url=options.spurl,data=certformdata, 
     		headers=headers)
     try:
@@ -888,29 +969,49 @@ def main():
     except Exception, e:
 	fatal("failure loading downloaded certificate: %s" % e)
 
+    if showprogress:
+	print ' fetched'
+
+    proxyorcert = 'certificate'
     if options.proxy:
+	proxyorcert = 'proxy'
 	if options.verbose:
 	    print "Generating proxy for storage"
-	(proxystr, proxykeystr) = generate_proxycert(certstr, privkey, 168 * 60 * 60)
+	elif showprogress:
+	    sys.stdout.write('Generating proxy ...')
+	try:
+	    (proxystr, proxykeystr) = generate_proxycert(certstr, privkey, options.proxyhours)
+	    proxy = crypto.load_certificate(crypto.FILETYPE_PEM, proxystr)
+	except Exception, e:
+	    fatal("failure generating proxy: %s" % e)
+	if showprogress:
+	    print ' generated'
 
     out = options.out.replace("%uid", str(os.getuid()))
-    if options.verbose:
-	print "Storing certificate chain in " + out
+    if options.verbose or showprogress:
+	print 'Storing ' + proxyorcert + ' in ' + out
     handle = os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w')
 
     if options.proxy:
 	handle.write(proxystr)
 	handle.write(proxykeystr)
 	handle.write(certstr)
+	firstcert = proxy
     else:
 	handle.write(certstr)
 	handle.write('\n')
 	handle.write(privkey)
+	firstcert = cert
 
-	if options.verbose:
-	    subj = cert.get_subject()
-	    print "subject  : " + x509name_to_str(cert.get_subject())
-	    print "issuer   : " + x509name_to_str(cert.get_issuer())
+    if options.verbose:
+        print "subject  : " + x509name_to_str(firstcert.get_subject())
+        print "issuer   : " + x509name_to_str(firstcert.get_issuer())
+
+    if options.verbose or showprogress:
+	validuntil = generalized_to_datetime(firstcert.get_notAfter())
+	localvalid = utc_datetime_to_local_time(validuntil)
+
+	print 'Your ' + proxyorcert + ' is valid until: ' + localvalid
 
 if __name__ == '__main__':
     main()
