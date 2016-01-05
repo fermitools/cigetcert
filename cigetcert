@@ -243,13 +243,13 @@ def match_hostname(x509cert, hostname):
         # The subject is only checked when there is no dNSName entry
         # in subjectAltName
         for sub in x509cert.get_subject().get_components():
-            for key, value in sub:
-                # XXX according to RFC 2818, the most specific Common Name
-                # must be used.
-                if key == 'commonName':
-                    if _dnsname_match(value, hostname):
-                        return
-                    dnsnames.append(value)
+            key, value = sub
+	    # XXX according to RFC 2818, the most specific Common Name
+	    # must be used.
+	    if key == 'CN':
+		if _dnsname_match(value, hostname):
+		    return
+		dnsnames.append(value)
     if len(dnsnames) > 1:
         raise CertificateError("hostname %r "
             "doesn't match either of %s"
