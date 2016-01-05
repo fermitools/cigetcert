@@ -64,6 +64,10 @@ def fatal(msg, code=1):
 	print >> sys.stderr, prog + ": " + msg + '\n'
     sys.exit(code)
 
+# print exception type name and contents after fatal error message
+def efatal(msg, e, code=1):
+    fatal(msg + ': ' + type(e).__name__ + ': ' + str(e), code)
+
 # this is from http://stackoverflow.com/questions/27227221/error-when-using-xml-api-findall-in-with-python-2-6
 def resolve_xpath(xpath, namespace):
     result = xpath
@@ -547,7 +551,7 @@ def main():
 	try:
 	    opthandle = opener.open(optrequest)
 	except Exception, e:
-	    fatal("fetch of options from %s failed: %s" % (optserver, e))
+	    efatal("fetch of options from %s failed" % optserver, e)
 	opts = opthandle.read()
 	if options.debug:
 	    print "##### Begin additional options"
@@ -556,7 +560,7 @@ def main():
 	try:
 	    extraargs = shlex.split(opts, True)
 	except Exception, e:
-	    fatal("parsing options from %s failed: %s" % (optserver, e))
+	    efatal("parsing options from %s failed" % optserver, e)
 	(options, args) = parser.parse_args(extraargs + sys.argv[1:])
 	if len(args) != 0:
 	    usage(parser, "non-option arguments found at %s" % optserver)
@@ -615,11 +619,12 @@ def main():
 	print "Fetching list of IdPs from " + options.idplisturl
     elif showprogress:
 	sys.stdout.write("Authorizing ...")
+	sys.stdout.flush()
     idplistrequest = urllib2.Request(url=options.idplisturl)
     try:
 	idplisthandle = opener.open(idplistrequest)
     except Exception, e:
-	fatal("fetch of idplist from %s failed: %s" % (options.idplisturl, e))
+	efatal("fetch of idplist from %s failed" % options.idplisturl, e)
     idplist = idplisthandle.read()
 
     idpurl = None
@@ -658,11 +663,12 @@ def main():
 	print "Requesting authorization from SP " + options.spurl
     elif showprogress:
 	sys.stdout.write('.')
+	sys.stdout.flush()
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
     try:
 	sphandle = opener.open(sprequest)
     except Exception, e:
-	fatal("first request to SP %s failed: %s" % (options.spurl,e))
+	efatal("first request to SP %s failed" % options.spurl, e)
     
     spetree = etree.XML(sphandle.read())
 
@@ -682,7 +688,7 @@ def main():
     try:
 	relayState = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
     except Exception, e:
-	fatal("Unable to parse RelayState element from SP response: %s" % e)
+	efatal("Unable to parse RelayState element from SP response", e)
 
     if options.debug:
 	print "###### Begin RelayState element"
@@ -693,7 +699,7 @@ def main():
     try:
 	responseConsumerURL = spetree.xpath("/S:Envelope/S:Header/paos:Request/@responseConsumerURL", namespaces=namespaces)[0]
     except Exception, e:
-	fatal("Unable to parse responseConsumerURL from SP response: %s" % e)
+	efatal("Unable to parse responseConsumerURL from SP response",  e)
 
     if options.debug:
 	print "###### Begin responseConsumerUrl attribute"
@@ -729,11 +735,12 @@ def main():
 	    print "Making unauthorized request to IdP " + url
 	elif showprogress:
 	    sys.stdout.write('.')
+	    sys.stdout.flush()
 	idprequest = urllib2.Request(url=url)
 	try:
 	    notauthidphandle = opener.open(idprequest)
 	except Exception, e:
-	    fatal("Failure on (deliberately) unauthorized request to IdP %s: %s" % (url, e))
+	    efatal("Failure on (deliberately) unauthorized request to IdP %s" % url, e)
 
 	if options.debug:
 	    print "###### Begin IdP response to unauthorized request"
@@ -759,12 +766,13 @@ def main():
 		kerberos.authGSSClientStep(krb_context, "")
 	    except Exception, e:
 		if options.noprompt:
-		    fatal("Kerberos initialization failed: %s" % e)
+		    efatal("Kerberos initialization failed", e)
 		if options.verbose:
 		    print "Kerberos initialization failed: %s" % e
 		    print "Trying password"
 		elif showprogress:
 		    sys.stdout.write('.')
+		    sys.stdout.flush()
 	    else:
 		negotiate_details = kerberos.authGSSClientResponse(krb_context)
 		headers = {
@@ -777,6 +785,7 @@ def main():
 		    print "Making kerberized request to IdP " + idpkrburl
 		elif showprogress:
 		    sys.stdout.write('.')
+		    sys.stdout.flush()
 
 		authidpurl = idpkrburl
 		idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
@@ -784,7 +793,7 @@ def main():
 		    idphandle = opener.open(idprequest)
 		except Exception, e:
 		    idphandle = None
-		    fatal("Failure on response from IdP %s: %s" % (idpkrburl, e))
+		    efatal("Failure on response from IdP %s" % idpkrburl, e)
 
     if not options.noprompt and (idphandle == None):
 	if idpurl != unauthidpurl:
@@ -820,7 +829,7 @@ def main():
 	try:
 	    idphandle = opener.open(idprequest)
 	except Exception, e:
-	    fatal("Failure on response from IdP %s: %s" % (idpurl, e))
+	    efatal("Failure on response from IdP %s" % idpurl, e)
 
     if idphandle.code != 200:
 	# in case unauthorized the second try
@@ -839,7 +848,7 @@ def main():
     try:
 	assertionConsumerServiceURL = idpetree.xpath("/S:Envelope/S:Header/ecp:Response/@AssertionConsumerServiceURL", namespaces=namespaces)[0]
     except Exception, e:
-	fatal("Unable to parse AssertionConsumerServiceURL from IdP response: %s" % e)
+	efatal("Unable to parse AssertionConsumerServiceURL from IdP response",  e)
 
     if options.debug:
 	print "###### Begin AssertionConsumerServiceURL attribute"
@@ -889,12 +898,13 @@ def main():
 	print "Sending response to Assertion Consumer " + assertionConsumerServiceURL
     elif showprogress:
 	sys.stdout.write('Fetching certificate ...')
+	sys.stdout.flush()
     headers = { 'Content-Type' : 'application/vnd.paos+xml' }
     acrequest = urllib2.Request(assertionConsumerServiceURL, headers=headers, data=acbody)
     try:
 	achandle = opener.open(acrequest)
     except Exception, e:
-	fatal("Failure on response from assertion consumer %s: %s" % (assertionConsumerServiceURL, e))
+	efatal("Failure on response from assertion consumer %s" % assertionConsumerServiceURL, e)
 
     # Ignore the response body. We only want the cookie which the opener
     #   has already stored in the cookiejar.
@@ -921,6 +931,7 @@ def main():
 	print "Generating Certificate Signing Request"
     elif showprogress:
 	sys.stdout.write('.')
+	sys.stdout.flush()
     key = crypto.PKey()
     key.generate_key(crypto.TYPE_RSA,2048)
     privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
@@ -949,12 +960,13 @@ def main():
 	print "Requesting certificate from SP " + options.spurl
     elif showprogress:
 	sys.stdout.write('.')
+	sys.stdout.flush()
     spcertrequest = urllib2.Request(url=options.spurl,data=certformdata, 
     		headers=headers)
     try:
 	spcerthandle = opener.open(spcertrequest)
     except Exception, e:
-	fatal("cert request to SP %s failed: %s" % (options.spurl,e))
+	efatal("cert request to SP %s failed" % options.spurl,e)
 
     certstr = spcerthandle.read()
     if options.debug:
@@ -967,7 +979,7 @@ def main():
     try:
 	cert = crypto.load_certificate(crypto.FILETYPE_PEM, certstr)
     except Exception, e:
-	fatal("failure loading downloaded certificate: %s" % e)
+	efatal("failure loading downloaded certificate", e)
 
     if showprogress:
 	print ' fetched'
@@ -979,11 +991,12 @@ def main():
 	    print "Generating proxy for storage"
 	elif showprogress:
 	    sys.stdout.write('Generating proxy ...')
+	    sys.stdout.flush()
 	try:
 	    (proxystr, proxykeystr) = generate_proxycert(certstr, privkey, options.proxyhours)
 	    proxy = crypto.load_certificate(crypto.FILETYPE_PEM, proxystr)
 	except Exception, e:
-	    fatal("failure generating proxy: %s" % e)
+	    efatal("failure generating proxy", e)
 	if showprogress:
 	    print ' generated'
 
