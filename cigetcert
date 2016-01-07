@@ -14,7 +14,7 @@
 
 
 prog = "cigetcert"
-version = "0.2"
+version = "0.3"
 
 import sys
 import os
@@ -936,44 +936,32 @@ def main():
         print [shibcookie]
 	print "###### End shibboleth cookie"
 
+    def random_string(len, outof=string.ascii_lowercase+string.digits):
+	# http://stackoverflow.com/a/23728630/2213647 says SystemRandom()
+	#  is most secure
+	return ''.join(random.SystemRandom().choice(outof) for _ in range(len))
+
     # Add a 10-character random Cross Site Request Forgery prevention cookie.
     # It also has to be a form value in order to pass the CILogon CSRF check.
-    csrfstr = string.join(
-	(random.choice(string.ascii_lowercase+string.digits) for _ in range(10)),
-	'')
+    csrfstr = random_string(10)
     headers = {
 	'Content-Type' : 'application/x-www-form-urlencoded',
 	'Cookie' : 'CSRF=' + csrfstr + '; ' +
 	    shibcookie.name + '=' + shibcookie.value
     }
 
-    # generate a Certificate Signing Request
-    if options.verbose:
-	print "Generating Certificate Signing Request"
-    elif showprogress:
-	sys.stdout.write('.')
-	sys.stdout.flush()
-    key = crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA,2048)
-    privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
-    csreq = crypto.X509Req()
-    csreq.set_pubkey(key)
-    if 'set_version' in dir(csreq):
-	# this function isn't in python2.4, but cilogon has seen
-	#  problems without it
-	csreq.set_version(0)
-    csreq.sign(key, "sha256")
-    csr = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csreq)
-    if options.debug:
-	print "###### Begin csr"
-        print csr
-	print "###### End csr"
+    # Choose a random password for encrypting pkcs12 cert/key over the link.
+    # The ascii letters are for strength, the digits and special characters
+    #  are just in case future rules enforce such things.
+    # Could instead use a CSR but that limits certificates to 277 hours.
+    p12password = random_string(16, string.ascii_letters) + \
+	random_string(2, string.digits) + random_string(2, '!@#$%^&*()')
 
     certformvars = [
-	('submit' , 'certreq'),
+	('submit' , 'pkcs12'),
 	('CSRF' , csrfstr),
-	('certlifetime' , options.hours),
-	('certreq' , csr)
+	('p12password' , p12password),
+	('certlifetime' , options.hours)
     ]
     certformdata = urllib.urlencode(certformvars)
 
@@ -989,20 +977,31 @@ def main():
     except Exception, e:
 	efatal("cert request to SP %s failed" % options.spurl,e)
 
-    certstr = spcerthandle.read()
-    certstr += '\n'
+    pkcs12cert = spcerthandle.read()
     if options.debug:
-	print "###### Begin cert"
-        sys.stdout.write(certstr)
-	print "###### End cert"
-    if not certstr.startswith('-----BEGIN CERTIFICATE-----'):
-	fatal("response from SP does not contain a certificate")
+	print "Read %d bytes of encrypted pkcs12 certificate" % len(pkcs12cert)
+
+    if options.verbose:
+	print "Converting PKCS12 certificate to PEM"
+    elif showprogress:
+	sys.stdout.write('.')
+	sys.stdout.flush()
 
     try:
-	cert = crypto.load_certificate(crypto.FILETYPE_PEM, certstr)
+	p12 = crypto.load_pkcs12(pkcs12cert, p12password)
     except Exception, e:
-	efatal("failure loading downloaded certificate", e)
+	efatal("could not decode certificate from SP %s" % options.spurl,e)
 
+    cert = p12.get_certificate()
+    certstr = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+    key = p12.get_privatekey()
+    keystr = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+
+    if options.debug:
+	print "###### Begin certificate and key"
+        sys.stdout.write(certstr)
+        sys.stdout.write(keystr)
+	print "###### End certificate and key"
     if showprogress:
 	print ' fetched'
 
@@ -1015,7 +1014,7 @@ def main():
 	    sys.stdout.write('Generating proxy ...')
 	    sys.stdout.flush()
 	try:
-	    (proxystr, proxykeystr) = generate_proxycert(certstr, privkey, options.proxyhours)
+	    (proxystr, proxykeystr) = generate_proxycert(certstr, keystr, options.proxyhours)
 	    proxy = crypto.load_certificate(crypto.FILETYPE_PEM, proxystr)
 	except Exception, e:
 	    efatal("failure generating proxy for storage", e)
@@ -1034,7 +1033,7 @@ def main():
 	firstcert = proxy
     else:
 	handle.write(certstr)
-	handle.write(privkey)
+	handle.write(keystr)
 	firstcert = cert
     handle.close()
 
@@ -1058,7 +1057,7 @@ def main():
 	sys.stdout.write('Generating proxy for MyProxy ...')
 	sys.stdout.flush()
     try:
-	(myproxystr, myproxykeystr) = generate_proxycert(certstr, privkey, options.hours)
+	(myproxystr, myproxykeystr) = generate_proxycert(certstr, keystr, options.hours)
     except Exception, e:
 	efatal("failure generating proxy for MyProxy", e)
     if showprogress:
