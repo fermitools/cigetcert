@@ -291,7 +291,7 @@ class _SslSocketWrapper(object):
 # and the callback from 
 # https://wiki.python.org/moin/SSL
 # and some additions based on the pyOpenSSL documentation.
-# These gyrations are needed to support python2.6 with certificate directorie
+# These gyrations are needed to support python2.6 with certificate directories
 #  containing CA certs and CRLs; python2.7 is supposed to validate certs by
 #  default, and the requests library with 2.6 only supports CA cert bundles.
 
@@ -308,11 +308,13 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
     default_port = httplib.HTTPS_PORT
 
     def __init__(self, host, port=None, key_file=None, cert_file=None,
-			 ca_certs=None, capath=None, strict=None, **kwargs):
+	    cert_chain_file=None, ca_certs=None, capath=None, strict=None,
+	    **kwargs):
         httplib.HTTPConnection.__init__(self, host, port, strict, **kwargs)
 	self.host = host
         self.key_file = key_file
         self.cert_file = cert_file
+        self.cert_chain_file = cert_chain_file
 	self.ca_certs = ca_certs
         self.capath = capath
 
@@ -325,18 +327,20 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
 	    context.use_certificate_file(self.cert_file)
 	if self.key_file != None:
 	    context.use_privatekey_file(self.key_file)
+	if self.cert_chain_file != None:
+	    context.use_certificate_chain_file(self.cert_chain_file)
 	context.set_verify(SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT, verify_cb)
 	context.set_default_verify_paths()
 	context.load_verify_locations(self.ca_certs, self.capath)
-	sslsock = SSL.Connection(context, socket.socket(socket.AF_INET, socket.SOCK_STREAM))
-	sslsock.connect((self.host, self.port))
-	sslsock.do_handshake()
-	cert = sslsock.get_peer_certificate()
+	sslconn = SSL.Connection(context, socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+	sslconn.connect((self.host, self.port))
+	sslconn.do_handshake()
+	cert = sslconn.get_peer_certificate()
 	hostname = self.host.split(':', 0)[0]
 	match_hostname(cert, hostname)
 	if options.debug:
 	    print "ssl cert matched host name " + hostname
-	self.sock = _SslSocketWrapper(sslsock)
+	self.sock = _SslSocketWrapper(sslconn)
 
 class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
     def __init__(self, **kwargs):
@@ -389,7 +393,14 @@ def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=1024)
     not_before.set_time(now)
     proxy.set_not_before(not_before)
     not_after = M2Crypto.ASN1.ASN1_UTCTIME()
-    not_after.set_time(now + lifehours * 60 * 60)
+    not_after_time = now + lifehours * 60 * 60
+    # make sure proxy doesn't expire later than the underlying cert
+    cert_not_after_time = int(cert.get_not_after().get_datetime().strftime("%s"))
+    # set_time() here accepts local time, compensate for timezone
+    cert_not_after_time -= time.timezone
+    if not_after_time > cert_not_after_time:
+	not_after_time = cert_not_after_time
+    not_after.set_time(not_after_time)
     proxy.set_not_after(not_after)
 
     proxy.set_issuer_name(cert.get_subject())
@@ -435,6 +446,19 @@ def generalized_to_datetime(t):
 def utc_datetime_to_local_time(utc_datetime):
     secs = int(utc_datetime.strftime('%s'))
     return time.ctime(secs - time.timezone)
+
+# Parse a myproxy response.  Returns integer response, error text.
+def parse_myproxy_response(text):
+    errormsg = ""
+    for line in text.split('\n'):
+	if line.startswith('RESPONSE='):
+	    response = int(line[line.index('=')+1:])
+	elif line.startswith('ERROR='):
+	    if errormsg != "":
+		errormsg += ' '
+	    errormsg += line[line.index('=')+1:]
+    
+    return response, errormsg
 
 ###  cigetcert main ####
 def main():
@@ -604,9 +628,6 @@ def main():
     global showprogress
     if not options.quiet and not options.verbose:
 	showprogress = True
-
-    if options.myproxyserver != None:
-	print "NOTE: --myproxy* options not yet implemented, continuing"
 
     if options.debug:
 	print "###### Durations:"
@@ -795,6 +816,7 @@ def main():
 		    idphandle = None
 		    efatal("Failure on response from IdP %s" % idpkrburl, e)
 
+    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
     if not options.noprompt and (idphandle == None):
 	if idpurl != unauthidpurl:
 	    wwwauthenticate = dounauthrequest(idpurl)
@@ -803,7 +825,6 @@ def main():
 	    fatal("IdP does not support password authentication")
 
 	# ask for password
-	username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
 	promptstr = options.promptstr.replace("%username",username)
 	if (promptstr.find('%realm') != -1):
 	    basic = wwwauthenticate['basic']
@@ -969,9 +990,10 @@ def main():
 	efatal("cert request to SP %s failed" % options.spurl,e)
 
     certstr = spcerthandle.read()
+    certstr += '\n'
     if options.debug:
 	print "###### Begin cert"
-        print certstr
+        sys.stdout.write(certstr)
 	print "###### End cert"
     if not certstr.startswith('-----BEGIN CERTIFICATE-----'):
 	fatal("response from SP does not contain a certificate")
@@ -996,7 +1018,7 @@ def main():
 	    (proxystr, proxykeystr) = generate_proxycert(certstr, privkey, options.proxyhours)
 	    proxy = crypto.load_certificate(crypto.FILETYPE_PEM, proxystr)
 	except Exception, e:
-	    efatal("failure generating proxy", e)
+	    efatal("failure generating proxy for storage", e)
 	if showprogress:
 	    print ' generated'
 
@@ -1012,9 +1034,9 @@ def main():
 	firstcert = proxy
     else:
 	handle.write(certstr)
-	handle.write('\n')
 	handle.write(privkey)
 	firstcert = cert
+    handle.close()
 
     if options.verbose:
         print "subject  : " + x509name_to_str(firstcert.get_subject())
@@ -1025,6 +1047,91 @@ def main():
 	localvalid = utc_datetime_to_local_time(validuntil)
 
 	print 'Your ' + proxyorcert + ' is valid until: ' + localvalid
+
+    ### MyProxy handling section
+    if options.myproxyserver == None:
+	sys.exit(0)
+
+    if options.verbose:
+	print "Generating proxy for MyProxy"
+    elif showprogress:
+	sys.stdout.write('Generating proxy for MyProxy ...')
+	sys.stdout.flush()
+    try:
+	(myproxystr, myproxykeystr) = generate_proxycert(certstr, privkey, options.hours)
+    except Exception, e:
+	efatal("failure generating proxy for MyProxy", e)
+    if showprogress:
+	print ' generated'
+
+
+    if options.verbose:
+	print "Storing proxy in MyProxy server " + options.myproxyserver
+    elif showprogress:
+	sys.stdout.write("Storing proxy in MyProxy ...")
+	sys.stdout.flush()
+
+    # The protocol with myproxy is not https but create an HTTPS
+    #  connection just to validate the certificate, then use the ssl
+    #  "socket" directly.
+    conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
+	capath=options.capath, cert_chain_file=out, key_file=out)
+    try:
+	conn.connect()
+    except Exception, e:
+	efatal("failure connecting to MyProxy server %s" % options.myproxyserver,e)
+    sslsock = conn.sock
+    sslsock.write('0') # required by MyProxy protocol
+
+    myproxyusername = options.myproxyusername.replace("%username",username)
+    storecmd = 'VERSION=MYPROXYv2\n'
+    storecmd += 'COMMAND=5\n'
+    storecmd += 'USERNAME=' + myproxyusername + '\n'
+    storecmd += 'PASSPHRASE=\n'
+    storecmd += 'LIFETIME=' + str(options.myproxyhours * 60 * 60) + '\n'
+
+    if options.debug:
+	print "###### Begin MyProxy store command"
+        sys.stdout.write(storecmd)
+	print "###### End MyProxy store command"
+
+    sslsock.write(storecmd)
+
+    myproxyresponse = sslsock.recv(8192)
+    if options.debug:
+	print "###### Begin MyProxy initial response"
+        sys.stdout.write(myproxyresponse)
+	print "###### End MyProxy initial response"
+
+    response, errortext = parse_myproxy_response(myproxyresponse)
+    if response:
+	fatal('error from MyProxy on store request: ' + errortext)
+
+    if showprogress:
+	sys.stdout.write('.')
+	sys.stdout.flush()
+
+    if options.debug:
+	print "###### Begin chain sending to MyProxy"
+	sys.stdout.write(myproxystr + myproxykeystr + certstr)
+	print "###### End chain sending to MyProxy"
+
+    # these have to all be sent in one write or sometimes MyProxy 
+    #  doesn't read all the pieces properly
+    sslsock.send(myproxystr + myproxykeystr + certstr)
+
+    myproxyresponse = sslsock.recv(8192)
+    if options.debug:
+	print "###### Begin MyProxy store response"
+        sys.stdout.write(myproxyresponse)
+	print "###### End MyProxy store response"
+
+    response, errortext = parse_myproxy_response(myproxyresponse)
+    if response:
+	fatal('error from MyProxy on store: ' + errortext)
+
+    if showprogress:
+	print ' stored'
 
 if __name__ == '__main__':
     main()
