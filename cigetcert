@@ -998,10 +998,12 @@ def main():
     keystr = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
 
     if options.debug:
-	print "###### Begin certificate and key"
+	print "###### Begin certificate"
         sys.stdout.write(certstr)
-        sys.stdout.write(keystr)
-	print "###### End certificate and key"
+	print "###### End certificate"
+	# deliberately not printing key, to prevent somebody from
+	#  accidentally storing it on disk if they redirect stdout
+	#  when using the debug option.
     if showprogress:
 	print ' fetched'
 
