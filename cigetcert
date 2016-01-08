@@ -393,7 +393,7 @@ def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=1024)
     not_before.set_time(now)
     proxy.set_not_before(not_before)
     not_after = M2Crypto.ASN1.ASN1_UTCTIME()
-    not_after_time = now + lifehours * 60 * 60
+    not_after_time = now + int(lifehours * 60 * 60)
     # make sure proxy doesn't expire later than the underlying cert
     cert_not_after_time = int(cert.get_not_after().get_datetime().strftime("%s"))
     # set_time() here accepts local time, compensate for timezone
@@ -505,6 +505,10 @@ def main():
     parser.add_option("-o", "--out", 
                       metavar="path", default="/tmp/x509up_u%uid",
                       help="file path to save certificate and key chain")
+    parser.add_option("", "--minhours", 
+                      type="float", metavar="num", default=12,
+                      help="minimum hours remaining in existing cert chain " + \
+			    "to keep using it instead of making a new one")
     weekhours = 24 * 7
     weekstr = str(weekhours)
     yearhours = int(24 * (365.5 + 31))
@@ -512,12 +516,12 @@ def main():
     defproxyhours = weekhours
     defproxystr = str(defproxyhours)
     parser.add_option("", "--hours", 
-                      type="int", metavar="num", default=weekhours,
+                      type="float", metavar="num", default=weekhours,
                       help="lifetime hours of the certificate [max: " + \
 			weekstr + " unless --myproxyserver is set, then " + \
 			yearstr + "]")
     parser.add_option("", "--proxyhours", 
-                      type="int", metavar="num",
+                      type="float", metavar="num",
                       help="lifetime hours of a proxy certificate " + \
 			"[max: "  + weekstr + "] [default: %hours, or " + \
 			defproxystr + " if %hours > " + weekstr + "]")
@@ -536,7 +540,7 @@ def main():
                       help="regular expression of certificate Distinguished" + \
 		      	    " Names permitted to fetch %username proxy from MyProxy")
     parser.add_option("", "--myproxyhours", 
-                      type="int", metavar="num",
+                      type="float", metavar="num",
                       help="max lifetime hours of a proxy fetched from MyProxy" + \
 			" [default: %proxyhours]")
 
@@ -601,6 +605,8 @@ def main():
 	options.myproxyhours = options.proxyhours
 
     # check for min and max
+    if options.minhours < 0:
+	fatal('--minhours must be non-negative')
     if options.hours < 0:
 	fatal('--hours must be non-negative')
     if (options.hours > weekhours) and (options.myproxyserver == None):
@@ -631,9 +637,46 @@ def main():
 
     if options.debug:
 	print "###### Durations:"
+	print "minhours: " + str(options.minhours)
 	print "hours: " + str(options.hours)
 	print "proxyhours: " + str(options.proxyhours)
 	print "myproxyhours: " + str(options.myproxyhours)
+
+    ### Check to see if an adequate proxy or cert already exists
+    outfile = options.out.replace("%uid", str(os.getuid()))
+    try:
+	existing = crypto.load_certificate(crypto.FILETYPE_PEM, open(outfile,'r').read())
+    except Exception, e:
+	if options.debug:
+	    print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
+	pass
+    else:
+	if options.verbose:
+	    print "Checking if %s has at least %s hours left" % (outfile, options.minhours)
+	elif showprogress:
+	    sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
+	    sys.stdout.flush()
+	existingdn = existing.get_subject()
+	time_left = int(generalized_to_datetime(existing.get_notAfter()).strftime("%s")) - \
+		int(time.time()) - time.timezone
+	if existingdn.organizationName != options.institution:
+	    if options.verbose:
+		print "The organization name does not match institution, skipping"
+	    elif showprogress:
+		sys.stdout.write('.')
+		sys.stdout.flush()
+	elif time_left < (options.minhours * 60 * 60):
+	    if options.verbose:
+		print "%.2f hours remaining, not enough" % (time_left / 60.0 / 60.0)
+	    elif showprogress:
+		sys.stdout.write('.')
+		sys.stdout.flush()
+	else:
+	    if options.verbose:
+		print "%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0)
+	    elif showprogress:
+		print " yes"
+	    sys.exit(0)
 
     ### Look up the IdP URL
     if options.verbose:
@@ -961,7 +1004,7 @@ def main():
 	('submit' , 'pkcs12'),
 	('CSRF' , csrfstr),
 	('p12password' , p12password),
-	('certlifetime' , options.hours)
+	('certlifetime' , int(options.hours))
     ]
     certformdata = urllib.urlencode(certformvars)
 
@@ -1001,9 +1044,9 @@ def main():
 	print "###### Begin certificate"
         sys.stdout.write(certstr)
 	print "###### End certificate"
-	# deliberately not printing key, to prevent somebody from
-	#  accidentally storing it on disk if they redirect stdout
-	#  when using the debug option.
+        # deliberately not printing key, to prevent somebody from
+        #  accidentally storing it on disk if they redirect stdout
+        #  when using the debug option.
     if showprogress:
 	print ' fetched'
 
@@ -1023,10 +1066,9 @@ def main():
 	if showprogress:
 	    print ' generated'
 
-    out = options.out.replace("%uid", str(os.getuid()))
     if options.verbose or showprogress:
-	print 'Storing ' + proxyorcert + ' in ' + out
-    handle = os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w')
+	print 'Storing ' + proxyorcert + ' in ' + outfile
+    handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w')
 
     if options.proxy:
 	handle.write(proxystr)
@@ -1076,7 +1118,7 @@ def main():
     #  connection just to validate the certificate, then use the ssl
     #  "socket" directly.
     conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
-	capath=options.capath, cert_chain_file=out, key_file=out)
+	capath=options.capath, cert_chain_file=outfile, key_file=outfile)
     try:
 	conn.connect()
     except Exception, e:
@@ -1089,7 +1131,7 @@ def main():
     storecmd += 'COMMAND=5\n'
     storecmd += 'USERNAME=' + myproxyusername + '\n'
     storecmd += 'PASSPHRASE=\n'
-    storecmd += 'LIFETIME=' + str(options.myproxyhours * 60 * 60) + '\n'
+    storecmd += 'LIFETIME=' + str(int(options.myproxyhours * 60 * 60)) + '\n'
 
     if options.debug:
 	print "###### Begin MyProxy store command"
