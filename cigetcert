@@ -641,6 +641,7 @@ def main():
 	print "hours: " + str(options.hours)
 	print "proxyhours: " + str(options.proxyhours)
 	print "myproxyhours: " + str(options.myproxyhours)
+	print
 
     ### Check to see if an adequate proxy or cert already exists
     outfile = options.out.replace("%uid", str(os.getuid()))
@@ -677,6 +678,8 @@ def main():
 	    elif showprogress:
 		print " yes"
 	    sys.exit(0)
+	if showprogress:
+	    print " no"
 
     ### Look up the IdP URL
     if options.verbose:
