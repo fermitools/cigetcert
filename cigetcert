@@ -447,9 +447,12 @@ def utc_datetime_to_local_time(utc_datetime):
     secs = int(utc_datetime.strftime('%s'))
     return time.ctime(secs - time.timezone)
 
-# Parse a myproxy response.  Returns integer response, error text.
+# Parse a myproxy response.  
+# Returns: integer response, error text, integer end time
 def parse_myproxy_response(text):
+    response = 1
     errormsg = ""
+    endtime = 0
     for line in text.split('\n'):
 	if line.startswith('RESPONSE='):
 	    response = int(line[line.index('=')+1:])
@@ -457,8 +460,10 @@ def parse_myproxy_response(text):
 	    if errormsg != "":
 		errormsg += ' '
 	    errormsg += line[line.index('=')+1:]
+	elif line.startswith('CRED_END_TIME='):
+	    endtime = int(line[line.index('=')+1:])
     
-    return response, errormsg
+    return response, errormsg, endtime
 
 ###  cigetcert main ####
 def main():
@@ -644,6 +649,8 @@ def main():
 	print
 
     ### Check to see if an adequate proxy or cert already exists
+    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
+    myproxyusername = options.myproxyusername.replace("%username",username)
     outfile = options.out.replace("%uid", str(os.getuid()))
     try:
 	existing = crypto.load_certificate(crypto.FILETYPE_PEM, open(outfile,'r').read())
@@ -660,13 +667,15 @@ def main():
 	existingdn = existing.get_subject()
 	time_left = int(generalized_to_datetime(existing.get_notAfter()).strftime("%s")) - \
 		int(time.time()) - time.timezone
+	if time_left < 0:
+	    time_left = 0
 	if existingdn.organizationName != options.institution:
 	    if options.verbose:
 		print "The organization name does not match institution, skipping"
 	    elif showprogress:
 		sys.stdout.write('.')
 		sys.stdout.flush()
-	elif time_left < (options.minhours * 60 * 60):
+	elif time_left <= (options.minhours * 60 * 60):
 	    if options.verbose:
 		print "%.2f hours remaining, not enough" % (time_left / 60.0 / 60.0)
 	    elif showprogress:
@@ -675,9 +684,75 @@ def main():
 	else:
 	    if options.verbose:
 		print "%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0)
-	    elif showprogress:
-		print " yes"
-	    sys.exit(0)
+	    canreuse = False
+	    if options.myproxyserver == None:
+		canreuse = True
+	    else:
+		minhours = options.hours - options.proxyhours - options.minhours
+		if options.verbose:
+		    print "Checking if %s has at least %s hours left" % \
+			    (options.myproxyserver, minhours)
+		elif showprogress:
+		    sys.stdout.write('.')
+		    sys.stdout.flush()
+
+		# The protocol with myproxy is not https but create an HTTPS
+		#  connection just to validate the certificate, then use the ssl
+		#  "socket" directly.
+		conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
+		    capath=options.capath, cert_chain_file=outfile, key_file=outfile)
+		try:
+		    conn.connect()
+		except Exception, e:
+		    if showprogress:
+			print
+		    efatal("failure connecting to MyProxy server %s to check lifetime" % options.myproxyserver,e)
+		sslsock = conn.sock
+		sslsock.write('0') # required by MyProxy protocol
+
+		storecmd = 'VERSION=MYPROXYv2\n'
+		storecmd += 'COMMAND=2\n'
+		storecmd += 'USERNAME=' + myproxyusername + '\n'
+		storecmd += 'PASSPHRASE=PASSPHRASE\n'
+		storecmd += 'LIFETIME=0'
+
+		if options.debug:
+		    print "###### Begin MyProxy store command"
+		    sys.stdout.write(storecmd)
+		    print "###### End MyProxy store command"
+
+		sslsock.write(storecmd)
+
+		myproxyresponse = sslsock.recv(8192)
+		if options.debug:
+		    print "###### Begin MyProxy response"
+		    sys.stdout.write(myproxyresponse)
+		    print "###### End MyProxy response"
+
+		response, errortext, endtime = parse_myproxy_response(myproxyresponse)
+		if response:
+		    if options.verbose:
+			print "No info retrieved from MyProxy, continuing"
+		else:
+		    time_left = endtime - int(time.time())
+		    if time_left < 0:
+			time_left = 0
+
+		    if time_left <= (minhours * 60 * 60):
+			if options.verbose:
+			    print "%.2f hours remaining, not enough" % \
+			    	(time_left / 60.0 / 60.0)
+		    else:
+			if options.verbose:
+			    print "%.2f hours remaining, enough to reuse" % \
+			    	(time_left / 60.0 / 60.0)
+			canreuse = True
+
+	    if canreuse:
+		if showprogress:
+		    print " yes"
+		sys.exit(0)
+
 	if showprogress:
 	    print " no"
 
@@ -862,7 +937,6 @@ def main():
 		    idphandle = None
 		    efatal("Failure on response from IdP %s" % idpkrburl, e)
 
-    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
     if not options.noprompt and (idphandle == None):
 	if idpurl != unauthidpurl:
 	    wwwauthenticate = dounauthrequest(idpurl)
@@ -1117,9 +1191,6 @@ def main():
 	sys.stdout.write("Storing proxy in MyProxy ...")
 	sys.stdout.flush()
 
-    # The protocol with myproxy is not https but create an HTTPS
-    #  connection just to validate the certificate, then use the ssl
-    #  "socket" directly.
     conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
 	capath=options.capath, cert_chain_file=outfile, key_file=outfile)
     try:
@@ -1129,7 +1200,6 @@ def main():
     sslsock = conn.sock
     sslsock.write('0') # required by MyProxy protocol
 
-    myproxyusername = options.myproxyusername.replace("%username",username)
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=5\n'
     storecmd += 'USERNAME=' + myproxyusername + '\n'
@@ -1149,7 +1219,7 @@ def main():
         sys.stdout.write(myproxyresponse)
 	print "###### End MyProxy initial response"
 
-    response, errortext = parse_myproxy_response(myproxyresponse)
+    response, errortext, _ = parse_myproxy_response(myproxyresponse)
     if response:
 	fatal('error from MyProxy on store request: ' + errortext)
 
@@ -1172,7 +1242,7 @@ def main():
         sys.stdout.write(myproxyresponse)
 	print "###### End MyProxy store response"
 
-    response, errortext = parse_myproxy_response(myproxyresponse)
+    response, errortext, _ = parse_myproxy_response(myproxyresponse)
     if response:
 	fatal('error from MyProxy on store: ' + errortext)
 
