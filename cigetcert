@@ -447,6 +447,17 @@ def utc_datetime_to_local_time(utc_datetime):
     secs = int(utc_datetime.strftime('%s'))
     return time.ctime(secs - time.timezone)
 
+# replace %certsubject in string with certificate subject
+# the passed-in certificate may be either a base certificate or one
+#   level of proxy above it
+# return replaced string
+def replace_certsubject(str, cert):
+    certsubject = x509name_to_str(cert.get_subject())
+    issuer = x509name_to_str(cert.get_issuer())
+    if certsubject.startswith(issuer):
+	certsubject = issuer
+    return str.replace('%certsubject', certsubject)
+
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
 def start_myproxy_command(chainfile, command, username, passphrase, lifehours):
@@ -575,7 +586,7 @@ def main():
                       metavar="Host",
                       help="host name of MyProxy server for storing credentials")
     parser.add_option("", "--myproxyusername", 
-                      metavar="str", default="%username",
+                      metavar="str", default="%certsubject",
                       help="username on MyProxy server for naming credentials")
     parser.add_option("", "--myproxyreader", 
                       metavar="DN",
@@ -732,6 +743,8 @@ def main():
 		elif showprogress:
 		    sys.stdout.write('.')
 		    sys.stdout.flush()
+
+		myproxyusername = replace_certsubject(myproxyusername, existing)
 
 		sslsock = start_myproxy_command(outfile, '2', myproxyusername,
 				'PASSPHRASE', 0)
@@ -1196,6 +1209,8 @@ def main():
     elif showprogress:
 	sys.stdout.write("Storing proxy in MyProxy ...")
 	sys.stdout.flush()
+
+    myproxyusername = replace_certsubject(myproxyusername, firstcert)
 
     sslsock = start_myproxy_command(outfile, '5', myproxyusername,
     						'', options.myproxyhours)
