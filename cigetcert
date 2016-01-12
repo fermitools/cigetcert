@@ -447,9 +447,46 @@ def utc_datetime_to_local_time(utc_datetime):
     secs = int(utc_datetime.strftime('%s'))
     return time.ctime(secs - time.timezone)
 
-# Parse a myproxy response.  
+# start connection to MyProxy and send it a command
+# returns ssl "socket"
+def start_myproxy_command(chainfile, command, username, passphrase, lifehours):
+    # The protocol with myproxy is not https but create an HTTPS
+    #  connection just to validate the certificate, then use the ssl
+    #  "socket" directly.
+    conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
+	capath=options.capath, cert_chain_file=chainfile, key_file=chainfile)
+    try:
+	conn.connect()
+    except Exception, e:
+	efatal("failure connecting to MyProxy server %s" % options.myproxyserver,e)
+    sslsock = conn.sock
+    sslsock.write('0') # required by MyProxy protocol
+
+    storecmd = 'VERSION=MYPROXYv2\n'
+    storecmd += 'COMMAND=' + str(command) + '\n'
+    storecmd += 'USERNAME=' + username + '\n'
+    storecmd += 'PASSPHRASE=' + passphrase + '\n'
+    storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
+
+    if options.debug:
+	print "###### Begin MyProxy command"
+	sys.stdout.write(storecmd)
+	print "###### End MyProxy command"
+
+    sslsock.write(storecmd)
+
+    return sslsock
+
+# Read and parse a myproxy response.  
 # Returns: integer response, error text, integer end time
-def parse_myproxy_response(text):
+def parse_myproxy_response(sslsock):
+
+    text = sslsock.recv(8192)
+    if options.debug:
+	print "###### Begin MyProxy response"
+	sys.stdout.write(text)
+	print "###### End MyProxy response"
+
     response = 1
     errormsg = ""
     endtime = 0
@@ -696,40 +733,10 @@ def main():
 		    sys.stdout.write('.')
 		    sys.stdout.flush()
 
-		# The protocol with myproxy is not https but create an HTTPS
-		#  connection just to validate the certificate, then use the ssl
-		#  "socket" directly.
-		conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
-		    capath=options.capath, cert_chain_file=outfile, key_file=outfile)
-		try:
-		    conn.connect()
-		except Exception, e:
-		    if showprogress:
-			print
-		    efatal("failure connecting to MyProxy server %s to check lifetime" % options.myproxyserver,e)
-		sslsock = conn.sock
-		sslsock.write('0') # required by MyProxy protocol
+		sslsock = start_myproxy_command(outfile, '2', myproxyusername,
+				'PASSPHRASE', 0)
 
-		storecmd = 'VERSION=MYPROXYv2\n'
-		storecmd += 'COMMAND=2\n'
-		storecmd += 'USERNAME=' + myproxyusername + '\n'
-		storecmd += 'PASSPHRASE=PASSPHRASE\n'
-		storecmd += 'LIFETIME=0'
-
-		if options.debug:
-		    print "###### Begin MyProxy store command"
-		    sys.stdout.write(storecmd)
-		    print "###### End MyProxy store command"
-
-		sslsock.write(storecmd)
-
-		myproxyresponse = sslsock.recv(8192)
-		if options.debug:
-		    print "###### Begin MyProxy response"
-		    sys.stdout.write(myproxyresponse)
-		    print "###### End MyProxy response"
-
-		response, errortext, endtime = parse_myproxy_response(myproxyresponse)
+		response, errortext, endtime = parse_myproxy_response(sslsock)
 		if response:
 		    if options.verbose:
 			print "No info retrieved from MyProxy, continuing"
@@ -1184,42 +1191,16 @@ def main():
     if showprogress:
 	print ' generated'
 
-
     if options.verbose:
 	print "Storing proxy in MyProxy server " + options.myproxyserver
     elif showprogress:
 	sys.stdout.write("Storing proxy in MyProxy ...")
 	sys.stdout.flush()
 
-    conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
-	capath=options.capath, cert_chain_file=outfile, key_file=outfile)
-    try:
-	conn.connect()
-    except Exception, e:
-	efatal("failure connecting to MyProxy server %s" % options.myproxyserver,e)
-    sslsock = conn.sock
-    sslsock.write('0') # required by MyProxy protocol
+    sslsock = start_myproxy_command(outfile, '5', myproxyusername,
+    						'', options.myproxyhours)
 
-    storecmd = 'VERSION=MYPROXYv2\n'
-    storecmd += 'COMMAND=5\n'
-    storecmd += 'USERNAME=' + myproxyusername + '\n'
-    storecmd += 'PASSPHRASE=\n'
-    storecmd += 'LIFETIME=' + str(int(options.myproxyhours * 60 * 60)) + '\n'
-
-    if options.debug:
-	print "###### Begin MyProxy store command"
-        sys.stdout.write(storecmd)
-	print "###### End MyProxy store command"
-
-    sslsock.write(storecmd)
-
-    myproxyresponse = sslsock.recv(8192)
-    if options.debug:
-	print "###### Begin MyProxy initial response"
-        sys.stdout.write(myproxyresponse)
-	print "###### End MyProxy initial response"
-
-    response, errortext, _ = parse_myproxy_response(myproxyresponse)
+    response, errortext, _ = parse_myproxy_response(sslsock)
     if response:
 	fatal('error from MyProxy on store request: ' + errortext)
 
@@ -1236,13 +1217,7 @@ def main():
     #  doesn't read all the pieces properly
     sslsock.send(myproxystr + myproxykeystr + certstr)
 
-    myproxyresponse = sslsock.recv(8192)
-    if options.debug:
-	print "###### Begin MyProxy store response"
-        sys.stdout.write(myproxyresponse)
-	print "###### End MyProxy store response"
-
-    response, errortext, _ = parse_myproxy_response(myproxyresponse)
+    response, errortext, _ = parse_myproxy_response(sslsock)
     if response:
 	fatal('error from MyProxy on store: ' + errortext)
 
