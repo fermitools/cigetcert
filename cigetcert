@@ -498,23 +498,28 @@ def parse_myproxy_response(sslsock):
     text = sslsock.recv(8192)
     if options.debug:
 	print "###### Begin MyProxy response"
-	sys.stdout.write(text)
-	print "###### End MyProxy response"
 
     response = 1
-    errormsg = ""
-    endtime = 0
+    params = {}
     for line in text.split('\n'):
-	if line.startswith('RESPONSE='):
-	    response = int(line[line.index('=')+1:])
-	elif line.startswith('ERROR='):
-	    if errormsg != "":
-		errormsg += ' '
-	    errormsg += line[line.index('=')+1:]
-	elif line.startswith('CRED_END_TIME='):
-	    endtime = int(line[line.index('=')+1:])
+	if '=' not in line:
+	    continue
+	if options.debug:
+	    print line
+	sep = line.index('=')
+	key = line[0:sep]
+	value = line[sep+1:]
+	if key == 'RESPONSE':
+	    response = int(value)
+	elif key in params:
+	    params[key] += ' ' + value
+	else:
+	    params[key] = value
+
+    if options.debug:
+	print "###### End MyProxy response"
     
-    return response, errormsg, endtime
+    return response, params
 
 ###  cigetcert main ####
 def main():
@@ -752,11 +757,18 @@ def main():
 		sslsock = start_myproxy_command(outfile, '2', myproxyusername,
 				'PASSPHRASE', 0)
 
-		response, errortext, endtime = parse_myproxy_response(sslsock)
+		response, params = parse_myproxy_response(sslsock)
 		if response:
+		    if options.debug:
+			print "##### Begin MyProxy error text"
+			print params['ERROR']
+			print "##### End MyProxy error text"
 		    if options.verbose:
 			print "No info retrieved from MyProxy, continuing"
+		elif 'CRED_END_TIME' not in params:
+		    fatal('no CRED_END_TIME in info retrieved from MyProxy')
 		else:
+		    endtime = int(params['CRED_END_TIME'])
 		    time_left = endtime - int(time.time())
 		    if time_left < 0:
 			time_left = 0
@@ -769,7 +781,27 @@ def main():
 			if options.verbose:
 			    print "%.2f hours remaining, enough to reuse" % \
 			    	(time_left / 60.0 / 60.0)
-			canreuse = True
+			if options.myproxyretrievers != None:
+			    if showprogress:
+				sys.stdout.write('.')
+				sys.stdout.flush()
+			    if ('CRED_RETRIEVER_TRUSTED' not in params) or \
+				(params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
+				if options.debug:
+				    print "##### Begin MyProxy retrievers"
+				    if 'CRED_RETRIEVER_TRUSTED' not in params:
+					print 'None'
+				    else:
+					print params['CRED_RETRIEVER_TRUSTED']
+				    print "##### End MyProxy retrievers"
+				if options.verbose:
+				    print "However the myproxyretrievers does not match"
+			    else:
+				if options.debug:
+				    print "myproxyretrievers also matches"
+				canreuse = True
+			else:
+			    canreuse = True
 
 	    if canreuse:
 		if showprogress:
@@ -1218,9 +1250,9 @@ def main():
     sslsock = start_myproxy_command(outfile, '5', myproxyusername,
 		    '', options.myproxyhours, options.myproxyretrievers)
 
-    response, errortext, _ = parse_myproxy_response(sslsock)
+    response, params = parse_myproxy_response(sslsock)
     if response:
-	fatal('error from MyProxy on store request: ' + errortext)
+	fatal('error from MyProxy on store request: ' + params['ERROR'])
 
     if showprogress:
 	sys.stdout.write('.')
@@ -1235,9 +1267,9 @@ def main():
     #  doesn't read all the pieces properly
     sslsock.send(myproxystr + myproxykeystr + certstr)
 
-    response, errortext, _ = parse_myproxy_response(sslsock)
+    response, params = parse_myproxy_response(sslsock)
     if response:
-	fatal('error from MyProxy on store: ' + errortext)
+	fatal('error from MyProxy on store: ' + params['ERROR'])
 
     if showprogress:
 	print ' stored'
