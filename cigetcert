@@ -10,6 +10,12 @@
 #  SAML - Security Assertion Markup Language
 #  ECP - Enhanced Client or Proxy SAML Profile
 #
+# Nonstandard python libraries required:
+#  m2crypto
+#  pyOpenSSL
+#  python-kerberos
+#  python-lxml
+
 # Author: Dave Dykstra dwd@fnal.gov
 
 
