@@ -460,7 +460,8 @@ def replace_certsubject(str, cert):
 
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
-def start_myproxy_command(chainfile, command, username, passphrase, lifehours):
+def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
+	    retrievers=None):
     # The protocol with myproxy is not https but create an HTTPS
     #  connection just to validate the certificate, then use the ssl
     #  "socket" directly.
@@ -478,6 +479,8 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours):
     storecmd += 'USERNAME=' + username + '\n'
     storecmd += 'PASSPHRASE=' + passphrase + '\n'
     storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
+    if retrievers != None:
+	storecmd += 'RETRIEVER_TRUSTED=' + retrievers + '\n'
 
     if options.debug:
 	print "###### Begin MyProxy command"
@@ -588,7 +591,7 @@ def main():
     parser.add_option("", "--myproxyusername", 
                       metavar="str", default="%certsubject",
                       help="username on MyProxy server for naming credentials")
-    parser.add_option("", "--myproxyreader", 
+    parser.add_option("", "--myproxyretrievers", 
                       metavar="DN",
                       help="regular expression of certificate Distinguished" + \
 		      	    " Names permitted to fetch %username proxy from MyProxy")
@@ -1213,7 +1216,7 @@ def main():
     myproxyusername = replace_certsubject(myproxyusername, firstcert)
 
     sslsock = start_myproxy_command(outfile, '5', myproxyusername,
-    						'', options.myproxyhours)
+		    '', options.myproxyhours, options.myproxyretrievers)
 
     response, errortext, _ = parse_myproxy_response(sslsock)
     if response:
