@@ -370,7 +370,7 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 # Requires M2Crypto, where the rest of the program is pyOpenSSL so
 #  need to convert things via PEM strings
 # Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
-def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=1024):
+def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=2048):
     import M2Crypto
     import struct
 
