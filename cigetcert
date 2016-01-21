@@ -16,6 +16,12 @@
 #  python-kerberos
 #  python-lxml
 
+# Except where noted, this source file is Copyright (c) 2015-2016, FERMI
+#   NATIONAL ACCELERATOR LABORATORY.  All rights reserved. 
+#
+# For details of the Fermitools (BSD) license see COPYING or
+#  http://fermitools.fnal.gov/about/terms.html
+#
 # Author: Dave Dykstra dwd@fnal.gov
 
 
