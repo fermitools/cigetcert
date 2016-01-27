@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "0.5"
+version = "0.6"
 
 import sys
 import os
@@ -537,7 +537,7 @@ def parse_myproxy_response(sslsock):
 def main():
     global options
     usagestr = "usage: %prog [-h] [otheroptions]"
-    parser = OptionParser(usage=usagestr, version=version)
+    parser = OptionParser(usage=usagestr, version=version, prog=prog)
 
     parser.add_option("-v", "--verbose", 
                       action="store_true", default=False,
