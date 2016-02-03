@@ -1,0 +1,56 @@
+.TH cigetcert
+.SH NAME
+cigetcert \- get an X.509 certificate using SAML ECP and store proxies
+
+.SH SYNOPSIS
+.B cigetcert
+.RI [ OPTION ]...
+
+.SH DESCRIPTION
+.B cigetcert
+gets an X.509 certificate from a SAML 2.0 Service Provider such as
+CILogon, using the Enhanced Client Profile (ECP).
+It can authenticate using either kerberos or password authentication.
+It stores either the certificate or a proxy certificate on the local
+disk, and also optionally stores a proxy in a MyProxy server.
+.PP
+When getting a certificate, the only required option is
+.I \-\-institution
+(or
+.IR \-i ).
+The option may come from a server rather than the command line when
+.I \-\-server
+(or
+.IR \-s )
+is used.
+.PP
+If an existing certificate has a minimum number of hours of validity
+remaining,
+.B
+cigetcert
+will reuse the certificate rather than getting a new one.  Details are
+under the
+.I \-\-minhours
+option below.
+
+.SH OPTIONS
+.PP
+.TP
+.B \-\-version
+Show the program's version number and exit.
+.TP
+.BR \-h , \ \-\-help
+Show a help message and exit.
+.TP
+.B \-v , \ \-\-verbose
+Write detailed progress reports to stdout instead of the default
+concise reports.
+.TP
+.B \-d , \ \-\-debug
+Write debug output to stdout.  Implies
+.IR \-v .
+Be aware that this writes a lot of output.
+.TP
+.B \-q , \ \-\-quiet
+Do not print anything, not the concise progress reports and not even
+error messages.
