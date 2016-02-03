@@ -547,7 +547,7 @@ def main():
                       help="write debug output to stdout (implies -v)")
     parser.add_option("-q", "--quiet", 
                       action="store_true", default=False,
-                      help="do not print error messages")
+                      help="do not print progress or error messages")
     parser.add_option("-s", "--optserver", 
                       metavar="HostOrURL",
                       help="server or URL with default %s options" % prog)
