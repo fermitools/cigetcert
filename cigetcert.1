@@ -42,15 +42,95 @@ Show the program's version number and exit.
 .BR \-h , \ \-\-help
 Show a help message and exit.
 .TP
-.B \-v , \ \-\-verbose
+.BR \-v , \ \-\-verbose
 Write detailed progress reports to stdout instead of the default
 concise reports.
 .TP
-.B \-d , \ \-\-debug
+.BR \-d , \ \-\-debug
 Write debug output to stdout.  Implies
 .IR \-v .
 Be aware that this writes a lot of output.
 .TP
-.B \-q , \ \-\-quiet
+.BR \-q , \ \-\-quiet
 Do not print anything, not the concise progress reports and not even
 error messages.
+.TP
+.BR \-s\ HostOrURL , \ \-\-optserver=HostOrURL
+The server host name or URL with default cigetcert options.  If it is
+just a host name, the URL read is
+.RS
+.RS
+https://hostname/cigetcertopts.txt
+.RE
+otherwise the whole URL is read.
+This file should contain cigetcert options.
+.RE
+.TP
+.BR \-i\ Name , \ \-\-institution\ Name
+The name of the institution that will provide the authentication from
+its Identity Provider (IdP).  This is required.
+.TP
+.B \-\-idplistURL=URL
+The URL that contains a file mapping IdP URLs to institution names,
+one per line.  If the institution name ends with "(Kerberos)" then
+that parenthetical ending is removed and that IdP is used when
+authenticating with kerberos.  The default URL is
+.RS
+.RS
+https://cilogon.org/include/ecpidps.txt
+.RE
+.RE
+.TP
+.B \-\-spurl=URL
+The SAML 2.0 ECP Service Provider (SP) URL.  The default is
+.RS
+.RS
+https://ecp.cilogon.org/secure/getcert
+.RE
+.RE
+.TP
+.B \-\-capath=path
+The path to a directory containing Certifying Authority (CA) 
+certificates and Certificate Revocation Lists (CRLs). 
+These will be used in addition to the system-supplied certificates to
+verify the validity of https connections.
+The default is
+.RS
+.RS
+/etc/grid-security/certificates
+.RE
+.RE
+.TP
+.BR \-k , \ \-\-kerberos
+Prefer kerberos authentication with the IdP if a kerberos ticket
+is available.  When not in combination with the
+.B \-\-noprompt
+option, if kerberos authentication fails then password authentication
+will be attempted.
+.TP
+.BR \-n , \ \-\-noprompt
+Do not prompt for a password.  Implies \-\-kerberos.
+.TP
+.BR \-p\ str , \ \-\-promptstr=str
+The string used when prompting for a password.  The default is
+.RS
+.RS
+Password for %username@%realm
+.RE
+where %username is the value of the \-\-username option and %realm is the
+realm value that the IdP supplies.
+.RE
+.TP
+.BR \-u\ str , \ \-\-username=str
+The string used as the username when authenticating with the IdP.
+The default is the $LOGNAME environment variable.
+.TP
+.BR \-o\ path , \ \-\-out=path
+The path of the file used to store the certificate key chain or proxy
+certificate key chain on the local machine.  The default is
+.RS
+.RS
+/tmp/x509up_%uid
+.RE
+where %uid is the the current user id.
+.RE
