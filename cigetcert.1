@@ -1,4 +1,4 @@
-.TH cigetcert
+.TH cigetcert 1
 .SH NAME
 cigetcert \- get an X.509 certificate using SAML ECP and store proxies
 
@@ -12,7 +12,7 @@ gets an X.509 certificate from a SAML 2.0 Service Provider such as
 CILogon, using the Enhanced Client Profile (ECP).
 It can authenticate using either kerberos or password authentication.
 It stores either the certificate or a proxy certificate on the local
-disk, and also optionally stores a proxy in a MyProxy server.
+filesystem, and also optionally stores a proxy in a MyProxy server.
 .PP
 When getting a certificate, the only required option is
 .I \-\-institution
@@ -104,12 +104,13 @@ The default is
 .BR \-k , \ \-\-kerberos
 Prefer kerberos authentication with the IdP if a kerberos ticket
 is available.  When not in combination with the
-.B \-\-noprompt
+.I \-\-noprompt
 option, if kerberos authentication fails then password authentication
 will be attempted.
 .TP
 .BR \-n , \ \-\-noprompt
-Do not prompt for a password.  Implies \-\-kerberos.
+Do not prompt for a password.  Implies
+.IR \-\-kerberos .
 .TP
 .BR \-p\ str , \ \-\-promptstr=str
 The string used when prompting for a password.  The default is
@@ -117,8 +118,9 @@ The string used when prompting for a password.  The default is
 .RS
 Password for %username@%realm
 .RE
-where %username is the value of the \-\-username option and %realm is the
-realm value that the IdP supplies.
+where %username is the value of the
+.I \-\-username
+option and %realm is the realm value that the IdP supplies.
 .RE
 .TP
 .BR \-u\ str , \ \-\-username=str
@@ -126,11 +128,99 @@ The string used as the username when authenticating with the IdP.
 The default is the $LOGNAME environment variable.
 .TP
 .BR \-o\ path , \ \-\-out=path
-The path of the file used to store the certificate key chain or proxy
-certificate key chain on the local machine.  The default is
+The path of the file used to store the certificate/key chain or proxy
+certificate/key chain on the local machine.  The default is
 .RS
 .RS
 /tmp/x509up_%uid
 .RE
 where %uid is the the current user id.
 .RE
+.TP
+.B \-\-minhours=num
+The minimum number of hours remaining before the existing local
+certificate chain expires in order to reuse it instead of making a
+new one.
+This feature is intended to reduce load on the servers.
+.I num
+may be a floating point number to specify fractions of hours for this
+option (similarly for all other *hours options).
+The default is 12.
+In addition, the institution name has to match the 'O=' organization
+portion of the certificate subject Distinguished Name (DN).
+Also, if myproxy options (below) are set, in order to reuse a proxy it
+has to already exist in the myproxy server and have a minimum number
+of hours remaining according to this formula:
+.RS
+.RS
+(%hours - %proxyhours) > %minhours
+.RE
+where the '%' names are the values of the corresponding options.
+Finally, if the
+.I \-\-myproxyretrievers
+option is set, that also must match with the value stored with the
+proxy on MyProxy.
+.RE
+.TP
+.B \-\-hours=num
+The number of hours on the certificate created by the SP.
+The maximum is ordinarly 168 (a week), unless
+.I \-\-myproxyserver
+is set; then the maximum is 9516 hours (13 months).
+The default is 168.
+.TP
+.B \-\-proxyhours=num
+The number of hours on a proxy certificate stored on the local filesystem.
+The maximum is 168.
+The default is the value of
+.IR \-\-hours ,
+unless it is greater than 168; then the default is 168.
+Implies
+.I \-\-proxy
+if not equal to the value of
+.IR \-\-hours .
+.TP
+.B \-\-proxy
+Store a proxy certificate/key chain on the local filesystem instead of
+the original certificate/key chain created by the SP.  Throw away the
+key of the original certificate.  This option is implied when the
+value of
+.I \-\-hours
+does not match the value of
+.IR \-\-proxyhours .
+.TP
+.B \-\-myproxyserver=Host
+Host name of a MyProxy server for storing a proxy certificate/key chain.
+The duration of that proxy will be the same as the original certificate,
+which is the value of
+.IR \-\-hours .
+.TP
+.B \-\-myproxyusername=str
+The username of the proxy stored in the MyProxy server.
+The default is %certsubject which gets replaced with the certificate
+subject DN.
+The string may contain %username which is replaced with the value of
+.IR \-\-username .
+.TP
+.B \-\-myproxyretrievers=expr
+A regular expression of certificate subject DNs that will be
+permitted to fetch a proxy from the MyProxy server for the
+username matching the value of 
+.IR \-\-myproxyusername .
+.TP
+.B \-\-myproxyhours=num
+The maximum number of hours of a proxy that may be fetched from 
+MyProxy.
+The maximum is 168.
+The default is the value of 
+.IR \-\-proxyhours.
+
+.SH "EXIT VALUES"
+The exit value is 0 if the requested operation was sucessful,
+or non-zero if there was a failure.
+
+.SH AUTHOR
+Dave Dykstra
+
+.SH COPYRIGHT
+Copyright \(co 2016 Fermi National Accelerator Laboratory
