@@ -51,12 +51,12 @@ Documentation
 -------------
 
 See the home page
-    https://cdcvs.fnal.gov/redmine/projects/fermitools/wiki/cigetcert
+    http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
 
 Required Software
 -----------------
-python >= 2.6, including add-on packages pyOpenSSL >= 0.13, m2crypto,
-    python-lxml, and python-kerberos
+python >= 2.6 and < 3, including add-on packages pyOpenSSL >= 0.13,
+    m2crypto, python-lxml, and python-kerberos
 
 
 ------------------------------------------------------------------------
