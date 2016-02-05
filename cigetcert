@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "0.6"
+version = "0.7"
 
 import sys
 import os
@@ -609,13 +609,13 @@ def main():
                       metavar="str", default="%certsubject",
                       help="username on MyProxy server for naming credentials")
     parser.add_option("", "--myproxyretrievers", 
-                      metavar="DN",
+                      metavar="expr",
                       help="regular expression of certificate Distinguished" + \
-		      	    " Names permitted to fetch %username proxy from MyProxy")
+		      	    " Names permitted to fetch %myproxyusername proxy from MyProxy")
     parser.add_option("", "--myproxyhours", 
                       type="float", metavar="num",
                       help="max lifetime hours of a proxy fetched from MyProxy" + \
-			" [default: %proxyhours]")
+			" [max: " + weekstr + "] [default: %proxyhours]")
 
 
     # add default value (if any) to the help messages that are strings
@@ -694,6 +694,8 @@ def main():
 	fatal('--proxyhours must <= --hours')
     if options.myproxyhours < 0:
 	fatal('--myproxyhours must be non-negative')
+    if options.myproxyhours > weekhours:
+	fatal('--myproxyhours must <= ' + weekstr)
     if options.myproxyhours > options.hours:
 	fatal('--myproxyhours must <= --hours')
 
