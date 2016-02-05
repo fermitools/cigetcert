@@ -215,6 +215,39 @@ The maximum is 168.
 The default is the value of 
 .IR \-\-proxyhours.
 
+.SH EXAMPLES
+.PP
+To get a 1 week certificate in /tmp, prompting for a password:
+.PP
+.RS
+.nf
+cigetcert -i 'Fermi National Accelerator Laboratory'
+.fi
+.RE
+.PP
+To get a 4 week proxy in a myproxy server and 1 week in /tmp, using
+kerberos if available, allowing retrieving by other servers and a
+maximum time for retrieved proxies retrieved of 1 day:
+.PP
+.RS
+.nf
+cigetcert -k --hours=672 \\
+    -i 'Fermi National Accelerator Laboratory' \\
+    --myproxyserver=myproxy.fnal.gov \\
+    --myproxyretrievers='.*/CN=fifebatch(|1|2).fnal.gov' \\
+    --myproxyhours=24
+.fi
+.RE
+.PP
+To read options including the institution from a server and use
+only kerberos authentication and not password authentication:
+.PP
+.RS
+.nf
+cigetcert -ns fifebatch.fnal.gov
+.fi
+.RE
+
 .SH "EXIT VALUES"
 .TP
 .B 0

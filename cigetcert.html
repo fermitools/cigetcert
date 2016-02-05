@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Fri Feb  5 09:06:39 2016 -->
+<!-- CreationDate: Fri Feb  5 09:29:44 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -13,6 +13,7 @@
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#EXIT VALUES">EXIT VALUES</a><br>
 <a href="#AUTHOR">AUTHOR</a><br>
 <a href="#COPYRIGHT">COPYRIGHT</a><br>
@@ -616,9 +617,81 @@ fetched from MyProxy. The maximum is 168. The default is the
 value of <i>&minus;&minus;proxyhours.</i></p>
 </td>
 </table>
+<a name="EXAMPLES"></a>
+<h2>EXAMPLES</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To get a 1 week certificate in /tmp, prompting for a
+password:</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="20%"></td>
+<td width="79%">
+<pre>cigetcert -i &rsquo;Fermi National Accelerator Laboratory&rsquo;
+</pre>
+</td>
+</table>
+<!-- INDENTATION -->
+
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To get a 4 week proxy in a myproxy server and 1 week in
+/tmp, using kerberos if available, allowing retrieving by
+other servers and a maximum time for retrieved proxies
+retrieved of 1 day:</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="20%"></td>
+<td width="79%">
+<pre>cigetcert -k --hours=672 \
+    -i &rsquo;Fermi National Accelerator Laboratory&rsquo; \
+    --myproxyserver=myproxy.fnal.gov \
+    --myproxyretrievers=&rsquo;.*/CN=fifebatch(|1|2).fnal.gov&rsquo; \
+    --myproxyhours=24
+</pre>
+</td>
+</table>
+<!-- INDENTATION -->
+
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To read options including the institution from a server
+and use only kerberos authentication and not password
+authentication:</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="20%"></td>
+<td width="79%">
+<pre>cigetcert -ns fifebatch.fnal.gov
+</pre>
+</td>
+</table>
 <a name="EXIT VALUES"></a>
 <h2>EXIT VALUES</h2>
 <!-- TABS -->
+
 <table width="100%" border=0 rules="none" frame="void"
        cols="5" cellspacing="0" cellpadding="0">
 <tr valign="top" align="left">
