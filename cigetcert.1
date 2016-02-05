@@ -216,11 +216,21 @@ The default is the value of
 .IR \-\-proxyhours.
 
 .SH "EXIT VALUES"
-The exit value is 0 if the requested operation was sucessful,
-or non-zero if there was a failure.
+.TP
+.B 0
+Success
+.TP
+.B 1
+All fatal errors other than usage errors
+.TP
+.B 2
+Usage error
 
 .SH AUTHOR
 Dave Dykstra
 
 .SH COPYRIGHT
 Copyright \(co 2016 Fermi National Accelerator Laboratory
+
+.SH "SEE ALSO"
+http://www.cilogon.org/ecp
