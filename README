@@ -2,8 +2,8 @@
 
 
 Product Name:           cigetcert
-Product Version:        0.7
-Date (yyyy/mm/dd):      2016/02/05
+Product Version:        0.8
+Date (yyyy/mm/dd):      2016/02/08
 
 ------------------------------------------------------------------------
 
@@ -58,8 +58,8 @@ A formatted man page is available at
 
 Required Software
 -----------------
-python >= 2.6 and < 3, including add-on packages pyOpenSSL >= 0.13,
-    m2crypto, python-lxml, and python-kerberos
+python >= 2.4 and < 3, including add-on packages m2crypto, pyOpenSSL,
+    python-lxml, and python-kerberos
 
 
 ------------------------------------------------------------------------
