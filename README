@@ -2,8 +2,8 @@
 
 
 Product Name:           cigetcert
-Product Version:        0.6
-Date (yyyy/mm/dd):      2016/01/27
+Product Version:        0.7
+Date (yyyy/mm/dd):      2016/02/05
 
 ------------------------------------------------------------------------
 
@@ -52,6 +52,9 @@ Documentation
 
 See the home page
     http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
+
+A formatted man page is available at
+    https://git.io/vgcZm
 
 Required Software
 -----------------
