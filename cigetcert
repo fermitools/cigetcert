@@ -47,8 +47,8 @@ import random
 import warnings
 import datetime
 import time
+from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
-from OpenSSL import SSL
 
 import shlex
 from optparse import OptionParser
@@ -56,6 +56,7 @@ from optparse import OptionParser
 defaults = {
     "spurl" : "https://ecp.cilogon.org/secure/getcert",
     "idplisturl" : "https://cilogon.org/include/ecpidps.txt",
+    "cafile" : "/etc/pki/tls/cert.pem",
     "capath" : "/etc/grid-security/certificates"
 }
 
@@ -109,173 +110,13 @@ def checkRequiredOptions(options, parser):
     if len(missing_options) > 0:
 	usage(parser, "Missing required parameters: " + str(missing_options))
 
-# There ought to be a builtin function for this but I couldn't find it.
-# The only thing I could find is to extract tne quoted string from the
-#   str representation of the x509Name object.
+# M2Crypto's X509_Name as_text() returns comma-separated list, so convert
+#  that to conventional format with slashes.
 def x509name_to_str(name):
-    return str(name).split("'")[1]
+    return name.as_text().replace(', ','/')
 
 
-###### Begin code imported from backports.ssl_match_hostname 3.5.0.1 ######
-# Code was written by Brandon Craig Rhodes and is covered under the Python 
-# Software Foundation License.
-
-# Note: the upstream match_hostname function has been modified to work with
-# pyOpenSSL X509 objects instead of the SSLSocket.getpeercert() format.
-# Even though this has code to support python2.4, other code in this
-# file requires a pyOpenSSL version newer than typically shipped with
-# python-2.4.
-
-#############
-# ipaddress has been backported to 2.6+ in pypi.  If it is installed on the
-# system, use it to handle IPAddress ServerAltnames (this was added in
-# python-3.5) otherwise only do DNS matching.  This allows
-# backports.ssl_match_hostname to continue to be used all the way back to
-# python-2.4.
-try:
-    import ipaddress
-except ImportError:
-    ipaddress = None
-
-class CertificateError(ValueError):
-    pass
-
-def _dnsname_match(dn, hostname, max_wildcards=1):
-    """Matching according to RFC 6125, section 6.4.3
-
-    http://tools.ietf.org/html/rfc6125#section-6.4.3
-    """
-    pats = []
-    if not dn:
-        return False
-
-    # Ported from python3-syntax:
-    # leftmost, *remainder = dn.split(r'.')
-    parts = dn.split(r'.')
-    leftmost = parts[0]
-    remainder = parts[1:]
-
-    wildcards = leftmost.count('*')
-    if wildcards > max_wildcards:
-        # Issue #17980: avoid denials of service by refusing more
-        # than one wildcard per fragment.  A survey of established
-        # policy among SSL implementations showed it to be a
-        # reasonable choice.
-        raise CertificateError(
-            "too many wildcards in certificate DNS name: " + repr(dn))
-
-    # speed up common case w/o wildcards
-    if not wildcards:
-        return dn.lower() == hostname.lower()
-
-    # RFC 6125, section 6.4.3, subitem 1.
-    # The client SHOULD NOT attempt to match a presented identifier in which
-    # the wildcard character comprises a label other than the left-most label.
-    if leftmost == '*':
-        # When '*' is a fragment by itself, it matches a non-empty dotless
-        # fragment.
-        pats.append('[^.]+')
-    elif leftmost.startswith('xn--') or hostname.startswith('xn--'):
-        # RFC 6125, section 6.4.3, subitem 3.
-        # The client SHOULD NOT attempt to match a presented identifier
-        # where the wildcard character is embedded within an A-label or
-        # U-label of an internationalized domain name.
-        pats.append(re.escape(leftmost))
-    else:
-        # Otherwise, '*' matches any dotless string, e.g. www*
-        pats.append(re.escape(leftmost).replace(r'\*', '[^.]*'))
-
-    # add the remaining fragments, ignore any wildcards
-    for frag in remainder:
-        pats.append(re.escape(frag))
-
-    pat = re.compile(r'\A' + r'\.'.join(pats) + r'\Z', re.IGNORECASE)
-    return pat.match(hostname)
-
-def _to_unicode(obj):
-    if isinstance(obj, str) and sys.version_info < (3,):
-        obj = unicode(obj, encoding='ascii', errors='strict')
-    return obj
-
-def _ipaddress_match(ipname, host_ip):
-    """Exact matching of IP addresses.
-
-    RFC 6125 explicitly doesn't define an algorithm for this
-    (section 1.7.2 - "Out of Scope").
-    """
-    # OpenSSL may add a trailing newline to a subjectAltName's IP address
-    # Divergence from upstream: ipaddress can't handle byte str
-    ip = ipaddress.ip_address(_to_unicode(ipname).rstrip())
-    return ip == host_ip
-
-def match_hostname(x509cert, hostname):
-    """Verify that *x509cert* (in X509 object format) matches the
-    *hostname*.  RFC 2818 and RFC 6125 rules are followed, but IP
-    addresses are not accepted for *hostname*.
-
-    CertificateError is raised on failure. On success, the function
-    returns nothing.
-    """
-    if not x509cert:
-        raise ValueError("empty or no certificate, match_hostname needs a "
-                         "SSL socket or SSL context with either "
-                         "CERT_OPTIONAL or CERT_REQUIRED")
-    try:
-        # Divergence from upstream: ipaddress can't handle byte str
-        host_ip = ipaddress.ip_address(_to_unicode(hostname))
-    except ValueError:
-        # Not an IP address (common case)
-        host_ip = None
-    except UnicodeError:
-        # Divergence from upstream: Have to deal with ipaddress not taking
-        # byte strings.  addresses should be all ascii, so we consider it not
-        # an ipaddress in this case
-        host_ip = None
-    except AttributeError:
-        # Divergence from upstream: Make ipaddress library optional
-        if ipaddress is None:
-            host_ip = None
-        else:
-            raise
-    dnsnames = []
-    for n in range(0, x509cert.get_extension_count()):
-	ext = x509cert.get_extension(n)
-	if ext.get_short_name() == 'subjectAltName':
-	    for san in str(ext).split(', '):
-		key, value = san.split(':')
-		if key == 'DNS':
-		    if host_ip is None and _dnsname_match(value, hostname):
-			return
-		    dnsnames.append(value)
-		elif key == 'IP Address':
-		    if host_ip is not None and _ipaddress_match(value, host_ip):
-			return
-		    dnsnames.append(value)
-    if not dnsnames:
-        # The subject is only checked when there is no dNSName entry
-        # in subjectAltName
-        for sub in x509cert.get_subject().get_components():
-            key, value = sub
-	    # XXX according to RFC 2818, the most specific Common Name
-	    # must be used.
-	    if key == 'CN':
-		if _dnsname_match(value, hostname):
-		    return
-		dnsnames.append(value)
-    if len(dnsnames) > 1:
-        raise CertificateError("hostname %r "
-            "doesn't match either of %s"
-            % (hostname, ', '.join(map(repr, dnsnames))))
-    elif len(dnsnames) == 1:
-        raise CertificateError("hostname %r "
-            "doesn't match %r"
-            % (hostname, dnsnames[0]))
-    else:
-        raise CertificateError("no appropriate commonName or "
-            "subjectAltName fields were found")
-###### End code imported from backports.ssl_match_hostname 3.5.0.1 ######
-
-# Make a wrapper so a pyOpenSSL Connection object can be opened as a file
+# Make a wrapper so a SSL Connection object can be opened as a file
 # this is mostly from 
 # http://git.ganeti.org/?p=ganeti.git;a=commitdiff;h=beba56ae8;hp=70c815118f7f8bf151044cb09868d1e3d7a63ac8
 _SslSocketWrapperSkipClose = True
@@ -296,62 +137,35 @@ class _SslSocketWrapper(object):
 	    return
 	return self._sock.close()
 
-# This is a combination of
-# http://stackoverflow.com/questions/5700289/using-pyopenssl-to-create-urllib-custom-opener
-# and https://gist.github.com/schlamar/2993700 which was referenced from
-# http://stackoverflow.com/questions/1087227/validate-ssl-certificates-with-python
-# and the callback from 
-# https://wiki.python.org/moin/SSL
-# and some additions based on the pyOpenSSL documentation.
-# These gyrations are needed to support python2.6 with certificate directories
-#  containing CA certs and CRLs; python2.7 is supposed to validate certs by
-#  default, and the requests library with 2.6 only supports CA cert bundles.
-
-def verify_cb(conn, x509, errno, errdepth, retcode):
-    global options
-    if errno != 0:
-	raise CertificateError("certificate at depth %d invalid: %s" % 
-		(errdepth, crypto.X509_verify_cert_error_string(errno)))
-    if options.debug:
-	print "ssl cert validation passed at depth %d" % errdepth
-    return True
-
+# validate a certificate on an HTTPS connection with M2Crypto
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
     default_port = httplib.HTTPS_PORT
 
     def __init__(self, host, port=None, key_file=None, cert_file=None,
-	    cert_chain_file=None, ca_certs=None, capath=None, strict=None,
+	    cert_chain_file=None, cafile=None, capath=None, strict=None,
 	    **kwargs):
         httplib.HTTPConnection.__init__(self, host, port, strict, **kwargs)
 	self.host = host
         self.key_file = key_file
         self.cert_file = cert_file
         self.cert_chain_file = cert_chain_file
-	self.ca_certs = ca_certs
+	self.cafile = cafile
         self.capath = capath
 
     def connect(self):
-	context = SSL.Context(SSL.TLSv1_METHOD)
-	# not sure the following option is needed but saw it in example at
-	# http://blog.san-ss.com.ar/2012/05/validating-ssl-certificate-in-python.html
-	context.set_options(SSL.OP_NO_SSLv2)
-	if self.cert_file != None:
-	    context.use_certificate_file(self.cert_file)
-	if self.key_file != None:
-	    context.use_privatekey_file(self.key_file)
+	# the example used for M2Crypto connections was mostly 
+	#   http://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
+	context = SSL.Context('tlsv1')
+	if (self.cert_file != None) or (self.key_file != None):
+	    context.load_cert(self.cert_file, self.key_file)
 	if self.cert_chain_file != None:
-	    context.use_certificate_chain_file(self.cert_chain_file)
-	context.set_verify(SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT, verify_cb)
-	context.set_default_verify_paths()
-	context.load_verify_locations(self.ca_certs, self.capath)
-	sslconn = SSL.Connection(context, socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+	    context.load_cert_chain(self.cert_chain_file)
+	context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
+	if context.load_verify_locations(self.cafile, self.capath) != 1:
+	    raise CertificateError('Could not load verify locations ' + \
+	    		str(self.cafile) + ' ' + str(self.capath))
+	sslconn = SSL.Connection(context)
 	sslconn.connect((self.host, self.port))
-	sslconn.do_handshake()
-	cert = sslconn.get_peer_certificate()
-	hostname = self.host.split(':', 0)[0]
-	match_hostname(cert, hostname)
-	if options.debug:
-	    print "ssl cert matched host name " + hostname
 	self.sock = _SslSocketWrapper(sslconn)
 
 class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
@@ -379,32 +193,26 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 # Based on code from the gridproxy library
 #  https://github.com/abbot/gridproxy/blob/master/gridproxy/__init__.py
 # which is Copyright Lev Shamardin and covered under the GNU GPLv3 license.
-# Requires M2Crypto, where the rest of the program is pyOpenSSL so
-#  need to convert things via PEM strings
 # Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
-def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=2048):
-    import M2Crypto
+def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     import struct
 
-    cert = M2Crypto.X509.load_cert_string(certstr)
-    certprivkey = M2Crypto.EVP.load_key_string(privkeystr).get_rsa()
-    
     # according to
     #   https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29#Key_generation
     # the exponent 65537 (2^16+1) is most efficient
-    proxyrsa = M2Crypto.RSA.gen_key(bits, 65537, lambda x: None)
-    proxykey = M2Crypto.EVP.PKey()
+    proxyrsa = RSA.gen_key(bits, 65537, lambda x: None)
+    proxykey = EVP.PKey()
     proxykey.assign_rsa(proxyrsa)
 
-    proxy = M2Crypto.X509.X509()
+    proxy = X509.X509()
     proxy.set_pubkey(proxykey)
     proxy.set_version(2)
 
     now = int(time.time())
-    not_before = M2Crypto.ASN1.ASN1_UTCTIME()
+    not_before = ASN1.ASN1_UTCTIME()
     not_before.set_time(now)
     proxy.set_not_before(not_before)
-    not_after = M2Crypto.ASN1.ASN1_UTCTIME()
+    not_after = ASN1.ASN1_UTCTIME()
     not_after_time = now + int(lifehours * 60 * 60)
     # make sure proxy doesn't expire later than the underlying cert
     cert_not_after_time = int(cert.get_not_after().get_datetime().strftime("%s"))
@@ -416,7 +224,7 @@ def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=2048)
     proxy.set_not_after(not_after)
 
     proxy.set_issuer_name(cert.get_subject())
-    digest = M2Crypto.EVP.MessageDigest('sha1')
+    digest = EVP.MessageDigest('sha1')
     digest.update(proxykey.as_der())
     serial = struct.unpack("<L", digest.final()[:4])[0]
     proxy.set_serial_number(int(serial & 0x7fffffff))
@@ -424,35 +232,28 @@ def generate_proxycert(certstr, privkeystr, lifehours, limited=False, bits=2048)
     # It is not completely clear what happens with memory allocation
     # within the next calls, so after building the whole thing we are
     # going to reload it through der encoding/decoding.
-    proxy_subject = M2Crypto.X509.X509_Name()
+    proxy_subject = X509.X509_Name()
     subject = cert.get_subject()
     for idx in xrange(subject.entry_count()):
         entry = subject[idx].x509_name_entry
-        M2Crypto.m2.x509_name_add_entry(proxy_subject._ptr(), entry, -1, 0)
-    proxy_subject.add_entry_by_txt('CN', M2Crypto.ASN1.MBSTRING_ASC,
+        m2.x509_name_add_entry(proxy_subject._ptr(), entry, -1, 0)
+    proxy_subject.add_entry_by_txt('CN', ASN1.MBSTRING_ASC,
 				   str(serial), -1, -1, 0)
     proxy.set_subject(proxy_subject)
-    proxy.add_ext(M2Crypto.X509.new_extension("keyUsage",
+    proxy.add_ext(X509.new_extension("keyUsage",
 	"Digital Signature, Key Encipherment, Data Encipherment", 1))
     if limited:
-	proxy.add_ext(M2Crypto.X509.new_extension("proxyCertInfo",
+	proxy.add_ext(X509.new_extension("proxyCertInfo",
 	    "critical, language:1.3.6.1.4.1.3536.1.1.1.9", 1))
     else:
-	proxy.add_ext(M2Crypto.X509.new_extension("proxyCertInfo",
+	proxy.add_ext(X509.new_extension("proxyCertInfo",
 	    "critical, language:Inherit all", 1))
 
-    sign_pkey = M2Crypto.EVP.PKey()
+    sign_pkey = EVP.PKey()
     sign_pkey.assign_rsa(certprivkey, 0)
     proxy.sign(sign_pkey, 'sha1')
 
     return (proxy.as_pem(), proxykey.as_pem(None))
-
-## convert a generalized time string to a datetime in GMT
-def generalized_to_datetime(t):
-    # year, month, day, hour, min, second
-    # assume there's no time offset appended and that it ends with 'Z'
-    return datetime.datetime(int(t[0:4]), int(t[4:6]), int(t[6:8]),
-    	int(t[8:10]), int(t[10:12]), int(t[12:14]))
 
 # subtract the timezone seconds from datetime
 def utc_datetime_to_local_time(utc_datetime):
@@ -478,7 +279,8 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
     #  connection just to validate the certificate, then use the ssl
     #  "socket" directly.
     conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
-	capath=options.capath, cert_chain_file=chainfile, key_file=chainfile)
+	cafile=options.cafile, capath=options.capath, 
+	cert_chain_file=chainfile)
     try:
 	conn.connect()
     except Exception, e:
@@ -560,6 +362,9 @@ def main():
     parser.add_option("", "--spurl", 
                       metavar="URL", default=defaults['spurl'],
                       help="Service Provider URL")
+    parser.add_option("", "--cafile", 
+                      metavar="file", default=defaults['cafile'],
+                      help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath", 
                       metavar="path", default=defaults['capath'],
                       help="Certifying Authority certificates and CRLs directory")
@@ -630,7 +435,7 @@ def main():
     # Set up https handler/opener with cookies
     cookiejar = cookielib.CookieJar()
     cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
-    httpshandler = VerifiedHTTPSHandler(capath=options.capath)
+    httpshandler = VerifiedHTTPSHandler(cafile=options.cafile, capath=options.capath)
     if options.debug:
 	httpshandler.set_http_debuglevel(1)
     # need to avoid redirects
@@ -723,7 +528,7 @@ def main():
     myproxyusername = options.myproxyusername.replace("%username",username)
     outfile = options.out.replace("%uid", str(os.getuid()))
     try:
-	existing = crypto.load_certificate(crypto.FILETYPE_PEM, open(outfile,'r').read())
+	existing = X509.load_cert(outfile)
     except Exception, e:
 	if options.debug:
 	    print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
@@ -735,7 +540,7 @@ def main():
 	    sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
 	    sys.stdout.flush()
 	existingdn = existing.get_subject()
-	time_left = int(generalized_to_datetime(existing.get_notAfter()).strftime("%s")) - \
+	time_left = int(existing.get_not_after().get_datetime().strftime("%s")) - \
 		int(time.time()) - time.timezone
 	if time_left < 0:
 	    time_left = 0
@@ -1176,15 +981,20 @@ def main():
 	sys.stdout.write('.')
 	sys.stdout.flush()
 
+    # M2Crypto does not support pkcs12 so need to use pyOpenSSL
     try:
 	p12 = crypto.load_pkcs12(pkcs12cert, p12password)
     except Exception, e:
 	efatal("could not decode certificate from SP %s" % options.spurl,e)
 
     cert = p12.get_certificate()
-    certstr = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
     key = p12.get_privatekey()
+
+    # convert back to M2Crypto objects
+    certstr = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+    cert = X509.load_cert_string(certstr)
     keystr = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+    key = EVP.load_key_string(keystr).get_rsa()
 
     if options.debug:
 	print "###### Begin certificate"
@@ -1205,8 +1015,8 @@ def main():
 	    sys.stdout.write('Generating proxy ...')
 	    sys.stdout.flush()
 	try:
-	    (proxystr, proxykeystr) = generate_proxycert(certstr, keystr, options.proxyhours)
-	    proxy = crypto.load_certificate(crypto.FILETYPE_PEM, proxystr)
+	    (proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
+	    proxy = X509.load_cert_string(proxystr)
 	except Exception, e:
 	    efatal("failure generating proxy for storage", e)
 	if showprogress:
@@ -1232,7 +1042,7 @@ def main():
         print "issuer   : " + x509name_to_str(firstcert.get_issuer())
 
     if options.verbose or showprogress:
-	validuntil = generalized_to_datetime(firstcert.get_notAfter())
+	validuntil = firstcert.get_not_after().get_datetime()
 	localvalid = utc_datetime_to_local_time(validuntil)
 
 	print 'Your ' + proxyorcert + ' is valid until: ' + localvalid
@@ -1247,7 +1057,7 @@ def main():
 	sys.stdout.write('Generating proxy for MyProxy ...')
 	sys.stdout.flush()
     try:
-	(myproxystr, myproxykeystr) = generate_proxycert(certstr, keystr, options.hours)
+	(myproxystr, myproxykeystr) = generate_proxycert(cert, key, options.hours)
     except Exception, e:
 	efatal("failure generating proxy for MyProxy", e)
     if showprogress:
