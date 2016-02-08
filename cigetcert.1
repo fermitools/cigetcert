@@ -89,11 +89,23 @@ https://ecp.cilogon.org/secure/getcert
 .RE
 .RE
 .TP
+.B \-\-cafile=file
+The path to a file containing a bundle of Certifying Authority (CA)
+certificates.
+These will be used to verify the validity of https connections.
+The default is
+.RS
+.RS
+/etc/pki/tls/cert.pem
+.RE
+.RE
+.TP
 .B \-\-capath=path
 The path to a directory containing Certifying Authority (CA) 
 certificates and Certificate Revocation Lists (CRLs). 
-These will be used in addition to the system-supplied certificates to
-verify the validity of https connections.
+These will be used in addition to the 
+.I \-\-cafile
+certificates to verify the validity of https connections.
 The default is
 .RS
 .RS

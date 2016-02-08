@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Fri Feb  5 09:29:44 2016 -->
+<!-- CreationDate: Mon Feb  8 16:52:23 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -274,6 +274,32 @@ is</p></td>
 <tr valign="top" align="left">
 <td width="10%"></td>
 <td width="89%">
+<p><b>&minus;&minus;cafile=file</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>The path to a file containing a bundle of Certifying
+Authority (CA) certificates. These will be used to verify
+the validity of https connections. The default is</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="30%"></td>
+<td width="69%">
+<p>/etc/pki/tls/cert.pem</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
 <p><b>&minus;&minus;capath=path</b></p></td>
 </table>
 <!-- INDENTATION -->
@@ -284,9 +310,9 @@ is</p></td>
 <td width="77%">
 <p>The path to a directory containing Certifying Authority
 (CA) certificates and Certificate Revocation Lists (CRLs).
-These will be used in addition to the system-supplied
-certificates to verify the validity of https connections.
-The default is</p></td>
+These will be used in addition to the
+<i>&minus;&minus;cafile</i> certificates to verify the
+validity of https connections. The default is</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
