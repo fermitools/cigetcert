@@ -1013,11 +1013,11 @@ def main():
 	elif showprogress:
 	    sys.stdout.write('Generating proxy ...')
 	    sys.stdout.flush()
-#	try:
-	(proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
-	proxy = X509.load_cert_string(proxystr)
-#	except Exception, e:
-#	    efatal("failure generating proxy for storage", e)
+	try:
+	    (proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
+	    proxy = X509.load_cert_string(proxystr)
+	except Exception, e:
+	    efatal("failure generating proxy for storage", e)
 	if showprogress:
 	    print ' generated'
 
