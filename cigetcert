@@ -954,7 +954,7 @@ def main():
 	('submit' , 'pkcs12'),
 	('CSRF' , csrfstr),
 	('p12password' , p12password),
-	('certlifetime' , int(options.hours))
+	('p12lifetime' , int(options.hours))
     ]
     certformdata = urllib.urlencode(certformvars)
 
