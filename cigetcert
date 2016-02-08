@@ -194,7 +194,7 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 #   m2crypto 0.20 which is too new for RHEL5.
 def asn1time_local_secs(asn1time):
     timestruct = time.strptime(str(asn1time), '%b %d %H:%M:%S %Y GMT')
-    return (time.mktime(timestruct) - time.timezone)
+    return int(time.mktime(timestruct) - time.timezone)
 
 ### create a proxy certificate of a certificate ####
 # Based on code from the gridproxy library
