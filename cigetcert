@@ -189,6 +189,13 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 	return response
 
 
+# Convert an ASN1_UTCTIME to local seconds since the epoch.
+# Would have used get_datetime() except it isn't supported before
+#   m2crypto 0.20 which is too new for RHEL5.
+def asn1time_local_secs(asn1time):
+    timestruct = time.strptime(str(asn1time), '%b %d %H:%M:%S %Y GMT')
+    return (time.mktime(timestruct) - time.timezone)
+
 ### create a proxy certificate of a certificate ####
 # Based on code from the gridproxy library
 #  https://github.com/abbot/gridproxy/blob/master/gridproxy/__init__.py
@@ -215,9 +222,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     not_after = ASN1.ASN1_UTCTIME()
     not_after_time = now + int(lifehours * 60 * 60)
     # make sure proxy doesn't expire later than the underlying cert
-    cert_not_after_time = int(cert.get_not_after().get_datetime().strftime("%s"))
-    # set_time() here accepts local time, compensate for timezone
-    cert_not_after_time -= time.timezone
+    cert_not_after_time = asn1time_local_secs(cert.get_not_after())
     if not_after_time > cert_not_after_time:
 	not_after_time = cert_not_after_time
     not_after.set_time(not_after_time)
@@ -254,11 +259,6 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     proxy.sign(sign_pkey, 'sha1')
 
     return (proxy.as_pem(), proxykey.as_pem(None))
-
-# subtract the timezone seconds from datetime
-def utc_datetime_to_local_time(utc_datetime):
-    secs = int(utc_datetime.strftime('%s'))
-    return time.ctime(secs - time.timezone)
 
 # replace %certsubject in string with certificate subject
 # the passed-in certificate may be either a base certificate or one
@@ -539,11 +539,10 @@ def main():
 	elif showprogress:
 	    sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
 	    sys.stdout.flush()
-	existingdn = existing.get_subject()
-	time_left = int(existing.get_not_after().get_datetime().strftime("%s")) - \
-		int(time.time()) - time.timezone
+	time_left = asn1time_local_secs(existing.get_not_after()) - time.time()
 	if time_left < 0:
 	    time_left = 0
+	existingdn = existing.get_subject()
 	if existingdn.organizationName != options.institution:
 	    if options.verbose:
 		print "The organization name does not match institution, skipping"
@@ -1014,11 +1013,11 @@ def main():
 	elif showprogress:
 	    sys.stdout.write('Generating proxy ...')
 	    sys.stdout.flush()
-	try:
-	    (proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
-	    proxy = X509.load_cert_string(proxystr)
-	except Exception, e:
-	    efatal("failure generating proxy for storage", e)
+#	try:
+	(proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
+	proxy = X509.load_cert_string(proxystr)
+#	except Exception, e:
+#	    efatal("failure generating proxy for storage", e)
 	if showprogress:
 	    print ' generated'
 
@@ -1042,10 +1041,8 @@ def main():
         print "issuer   : " + x509name_to_str(firstcert.get_issuer())
 
     if options.verbose or showprogress:
-	validuntil = firstcert.get_not_after().get_datetime()
-	localvalid = utc_datetime_to_local_time(validuntil)
-
-	print 'Your ' + proxyorcert + ' is valid until: ' + localvalid
+	validuntil = time.ctime(asn1time_local_secs(firstcert.get_not_after()))
+	print 'Your ' + proxyorcert + ' is valid until: ' + validuntil
 
     ### MyProxy handling section
     if options.myproxyserver == None:
