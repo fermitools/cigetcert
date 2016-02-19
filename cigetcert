@@ -113,7 +113,7 @@ def checkRequiredOptions(options, parser):
 # M2Crypto's X509_Name as_text() returns comma-separated list, so convert
 #  that to conventional format with slashes.
 def x509name_to_str(name):
-    return name.as_text().replace(', ','/')
+    return '/' + name.as_text().replace(', ','/')
 
 
 # Make a wrapper so a SSL Connection object can be opened as a file
