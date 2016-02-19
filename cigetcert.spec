@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 0.8
+Version: 0.9
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -48,5 +48,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Feb 19 2016 Dave Dykstra <dwd@fnal.gov> 0.9-1
+- Add missing '/' to the beginning of the DN used as the username for
+    myproxy and printed out the -v option
+- Add --listinstitutions option
+
 * Thu Feb 11 2016 Dave Dykstra <dwd@fnal.gov> 0.8-1
 - Initial rpm packaging
