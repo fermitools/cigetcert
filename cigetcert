@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "0.9"
+version = "1.0"
 
 import sys
 import os
@@ -41,11 +41,8 @@ import cookielib
 import kerberos
 import getpass
 import base64
-import StringIO
 import string
 import random
-import warnings
-import datetime
 import time
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
@@ -102,7 +99,8 @@ def www_auth(handle):
     return auth_fields
 
 # function from http://stackoverflow.com/questions/4407539/python-how-to-make-an-option-to-be-required-in-optparse
-def checkRequiredOptions(options, parser):
+def checkRequiredOptions(parser):
+    global options
     missing_options = []
     for option in parser.option_list:
         if re.search('\(required\)$', option.help) and eval('options.' + option.dest) == None:
@@ -162,7 +160,7 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
 	    context.load_cert_chain(self.cert_chain_file)
 	context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
 	if context.load_verify_locations(self.cafile, self.capath) != 1:
-	    raise CertificateError('Could not load verify locations ' + \
+	    raise RuntimeError('Could not load verify locations ' + \
 	    		str(self.cafile) + ' ' + str(self.capath))
 	sslconn = SSL.Connection(context)
 	sslconn.connect((self.host, self.port))
@@ -264,12 +262,12 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 # the passed-in certificate may be either a base certificate or one
 #   level of proxy above it
 # return replaced string
-def replace_certsubject(str, cert):
+def replace_certsubject(strng, cert):
     certsubject = x509name_to_str(cert.get_subject())
     issuer = x509name_to_str(cert.get_issuer())
     if certsubject.startswith(issuer):
 	certsubject = issuer
-    return str.replace('%certsubject', certsubject)
+    return strng.replace('%certsubject', certsubject)
 
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
@@ -491,7 +489,7 @@ def main():
 	    prevname = name
 	sys.exit(0)
 
-    checkRequiredOptions(options, parser)
+    checkRequiredOptions(parser)
 
     # calculate defaults for options that are too complex for "default" keyword
     if options.hours > weekhours:
@@ -544,7 +542,7 @@ def main():
 	print
 
     ### Check to see if an adequate proxy or cert already exists
-    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"));
+    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"))
     myproxyusername = options.myproxyusername.replace("%username",username)
     outfile = options.out.replace("%uid", str(os.getuid()))
     try:
@@ -552,7 +550,6 @@ def main():
     except Exception, e:
 	if options.debug:
 	    print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
-	pass
     else:
 	if options.verbose:
 	    print "Checking if %s has at least %s hours left" % (outfile, options.minhours)
@@ -950,10 +947,10 @@ def main():
         print [shibcookie]
 	print "###### End shibboleth cookie"
 
-    def random_string(len, outof=string.ascii_lowercase+string.digits):
+    def random_string(length, outof=string.ascii_lowercase+string.digits):
 	# http://stackoverflow.com/a/23728630/2213647 says SystemRandom()
 	#  is most secure
-	return ''.join(random.SystemRandom().choice(outof) for _ in range(len))
+	return ''.join(random.SystemRandom().choice(outof) for _ in range(length))
 
     # Add a 10-character random Cross Site Request Forgery prevention cookie.
     # It also has to be a form value in order to pass the CILogon CSRF check.
