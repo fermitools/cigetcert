@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Mon Feb  8 16:52:23 2016 -->
+<!-- CreationDate: Mon Apr  4 10:53:55 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -53,10 +53,11 @@ and store proxies</p>
 <td width="89%">
 <p><b>cigetcert</b> gets an X.509 certificate from a SAML
 2.0 Service Provider such as CILogon, using the Enhanced
-Client Profile (ECP). It can authenticate using either
-kerberos or password authentication. It stores either the
-certificate or a proxy certificate on the local filesystem,
-and also optionally stores a proxy in a MyProxy server.</p>
+Client or Proxy (ECP) profile. It can authenticate using
+either kerberos or password authentication. It stores either
+the certificate or a proxy certificate on the local
+filesystem, and also optionally stores a proxy in a MyProxy
+server.</p>
 <!-- INDENTATION -->
 <p>When getting a certificate, the only required option is
 <i>&minus;&minus;institution</i> (or <i>&minus;i</i>). The
@@ -213,6 +214,24 @@ Name</b></p></td>
 <p>The name of the institution that will provide the
 authentication from its Identity Provider (IdP). This is
 required.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>&minus;&minus;listinstitutions</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Show the current list of available instituions and
+exit.</p>
 </td>
 </table>
 <!-- INDENTATION -->
