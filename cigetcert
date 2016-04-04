@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.0"
+version = "1.1"
 
 import sys
 import os
@@ -1041,7 +1041,17 @@ def main():
 
     if options.verbose or showprogress:
         print 'Storing ' + proxyorcert + ' in ' + outfile
-    handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0600), 'w')
+    # Attempt to remove the file first in case it exists, because os.O_EXCL
+    #  requires it to be gone.  Need to use os.O_EXCL to prevent somebody
+    #  else from pre-creating the file in order to steal credentials.
+    try:
+	os.remove(outfile);
+    except:
+	pass
+    try:
+        handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_EXCL, 0600), 'w')
+    except Exception, e:
+	efatal("failure creating file", e)
 
     if options.proxy:
         handle.write(proxystr)
