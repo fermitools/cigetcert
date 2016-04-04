@@ -1049,7 +1049,7 @@ def main():
     except:
 	pass
     try:
-        handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_EXCL, 0600), 'w')
+        handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0600), 'w')
     except Exception, e:
 	efatal("failure creating file", e)
 
