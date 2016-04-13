@@ -1,5 +1,12 @@
 Except where noted, "cigetcert" is covered under the Fermitools
-license, below.  In particular, part of it is GNU GPLv3.
+license, below.  In particular, some borrowed code in cigetcert is
+covered by the GNU GPLv3.  According to
+    https://en.wikipedia.org/wiki/License_compatibility#GPL_compatibility
+BSD-style licenses such as the Fermitools license below are compatible
+with the GNU GPL, but it means that the combination is covered under
+the terms of the GPL.  If you want to use just a piece of cigetcert
+source code not covered under another license, then the following
+license applies.
 
 --------------------------------------------------------------
 
