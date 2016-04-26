@@ -69,7 +69,7 @@ def usage(parser, msg):
 
 def fatal(msg, code=1):
     global options
-    if (options == None) or not options.quiet:
+    if (options is None) or not options.quiet:
         if showprogress:
             print >>sys.stderr
         print >> sys.stderr, prog + ": " + msg + '\n'
@@ -104,7 +104,7 @@ def checkRequiredOptions(parser):
     global options
     missing_options = []
     for option in parser.option_list:
-        if re.search('\(required\)$', option.help) and eval('options.' + option.dest) == None:
+        if re.search('\(required\)$', option.help) and eval('options.' + option.dest) is None:
             missing_options.extend(option._long_opts)
     if len(missing_options) > 0:
         usage(parser, "Missing required parameters: " + str(missing_options))
@@ -155,9 +155,9 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         # the example used for M2Crypto connections was mostly 
         #   http://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
         context = SSL.Context('tlsv1')
-        if (self.cert_file != None) or (self.key_file != None):
+        if (self.cert_file is not None) or (self.key_file is not None):
             context.load_cert(self.cert_file, self.key_file)
-        if self.cert_chain_file != None:
+        if self.cert_chain_file is not None:
             context.load_cert_chain(self.cert_chain_file)
         context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
         if context.load_verify_locations(self.cafile, self.capath) != 1:
@@ -292,7 +292,7 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
     storecmd += 'USERNAME=' + username + '\n'
     storecmd += 'PASSPHRASE=' + passphrase + '\n'
     storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
-    if retrievers != None:
+    if retrievers is not None:
         storecmd += 'RETRIEVER_TRUSTED=' + retrievers + '\n'
 
     if options.debug:
@@ -448,7 +448,7 @@ def main():
             return response
     noredirecthandler = NoRedirectHandler()
     opener = urllib2.build_opener(cookiehandler, noredirecthandler, httpshandler)
-    if options.optserver != None:
+    if options.optserver is not None:
         # read additional options from optserver
         optserver = options.optserver
         if optserver.find('://') == -1:
@@ -494,11 +494,11 @@ def main():
 
     # calculate defaults for options that are too complex for "default" keyword
     if options.hours > weekhours:
-        if options.proxyhours == None:
+        if options.proxyhours is None:
             options.proxyhours = defproxyhours
-    elif options.proxyhours == None:
+    elif options.proxyhours is None:
         options.proxyhours = options.hours
-    if options.myproxyhours == None:
+    if options.myproxyhours is None:
         options.myproxyhours = options.proxyhours
 
     # check for min and max
@@ -506,7 +506,7 @@ def main():
         fatal('--minhours must be non-negative')
     if options.hours < 0:
         fatal('--hours must be non-negative')
-    if (options.hours > weekhours) and (options.myproxyserver == None):
+    if (options.hours > weekhours) and (options.myproxyserver is None):
         fatal('--hours > ' + weekstr + ' and --myproxyserver not set')
     if options.hours > yearhours:
         fatal('--hours must be <= ' + yearstr)
@@ -577,7 +577,7 @@ def main():
             if options.verbose:
                 print "%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0)
             canreuse = False
-            if options.myproxyserver == None:
+            if options.myproxyserver is None:
                 canreuse = True
             else:
                 minhours = options.hours - options.proxyhours - options.minhours
@@ -617,7 +617,7 @@ def main():
                         if options.verbose:
                             print "%.2f hours remaining, enough to reuse" % \
                                 (time_left / 60.0 / 60.0)
-                        if options.myproxyretrievers != None:
+                        if options.myproxyretrievers is not None:
                             if showprogress:
                                 sys.stdout.write('.')
                                 sys.stdout.flush()
@@ -665,18 +665,18 @@ def main():
     for line in idplist.splitlines():
         idx = line.index(' ')
         name = line[idx+1:]
-        if re.match(options.institution + '($| \()', name) != None:
+        if re.match(options.institution + '($| \()', name) is not None:
             url = line[0:idx]
             if line.endswith(' (Kerberos)'):
                 idpkrburl = url
             else:
                 idpurl = url
-    if idpkrburl == None:
+    if idpkrburl is None:
         # if there's no server explicitly marked for kerberos, it's
         #   possible the regular server supports it
         idpkrburl = idpurl
 
-    if idpkrburl == None:
+    if idpkrburl is None:
         fatal('No institution called "' + options.institution + '"\n' +
                 '  in ' + options.idplisturl + '\n' +
                 '  Use --listinstitutions to see available institutions')
@@ -829,7 +829,7 @@ def main():
                     idphandle = None
                     efatal("Failure on response from IdP %s" % idpkrburl, e)
 
-    if not options.noprompt and (idphandle == None):
+    if not options.noprompt and (idphandle is None):
         if idpurl != unauthidpurl:
             wwwauthenticate = dounauthrequest(idpurl)
 
@@ -1074,7 +1074,7 @@ def main():
         print 'Your ' + proxyorcert + ' is valid until: ' + validuntil
 
     ### MyProxy handling section
-    if options.myproxyserver == None:
+    if options.myproxyserver is None:
         sys.exit(0)
 
     if options.verbose:
