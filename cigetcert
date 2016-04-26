@@ -31,6 +31,7 @@ version = "1.1"
 import sys
 import os
 import re
+import pwd
 from lxml import etree
 import httplib
 import socket
@@ -379,7 +380,7 @@ def main():
                       metavar="str", default="Password for %username@%realm",
                       help="prompt string")
     parser.add_option("-u", "--username", 
-                      metavar="str", default="$LOGNAME",
+                      metavar="str", default="%currentuser",
                       help="username for authentication")
     parser.add_option("-o", "--out", 
                       metavar="path", default="/tmp/x509up_u%uid",
@@ -542,7 +543,7 @@ def main():
         print
 
     ### Check to see if an adequate proxy or cert already exists
-    username = options.username.replace("$LOGNAME", os.getenv("LOGNAME"))
+    username = options.username.replace("%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
     myproxyusername = options.myproxyusername.replace("%username",username)
     outfile = options.out.replace("%uid", str(os.getuid()))
     try:
