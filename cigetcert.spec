@@ -14,6 +14,7 @@ Requires: m2crypto
 Requires: pyOpenSSL
 Requires: python-lxml
 Requires: python-kerberos
+BuildRequires: python
 
 BuildArch: noarch
 %if %{?rhel}%{!?rhel:6} <= 5
@@ -34,20 +35,27 @@ but is intended to be usable by other projects.
 %install
 rm -rf $RPM_BUILD_ROOT
 
-mkdir -p $RPM_BUILD_ROOT/%{_bindir}
-mkdir -p $RPM_BUILD_ROOT/%{_datadir}/man/man1
-cp %{name} $RPM_BUILD_ROOT/%{_bindir}
-gzip -c %{name}.1 >$RPM_BUILD_ROOT/%{_datadir}/man/man1/%{name}.1.gz
+mkdir -p $RPM_BUILD_ROOT%{_bindir}
+mkdir -p $RPM_BUILD_ROOT%{_libexecdir}/%{name}
+mkdir -p $RPM_BUILD_ROOT%{_datadir}/man/man1
+cp %{name}.sh $RPM_BUILD_ROOT%{_bindir}/%{name}
+cp %{name} $RPM_BUILD_ROOT%{_libexecdir}/%{name}/%{name}.py
+python -Em compileall -d %{_libexecdir}/%{name} $RPM_BUILD_ROOT%{_libexecdir}/%{name}
+gzip -c %{name}.1 >$RPM_BUILD_ROOT%{_datadir}/man/man1/%{name}.1.gz
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
 %{_bindir}/%{name}
+%{_libexecdir}/%{name}
 %{_datadir}/man/man1/%{name}*
 
 
 %changelog
+- Add wrapper script to unset PYTHONPATH and LD_LIBRARY_PATH
+- Pre-compile cigetcert python source
+
 * Mon Apr 04 2016 Dave Dykstra <dwd@fnal.gov> 1.1-1
 - Create the output file with O_EXCL.
 
