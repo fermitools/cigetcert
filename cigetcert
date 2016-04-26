@@ -78,13 +78,6 @@ def fatal(msg, code=1):
 def efatal(msg, e, code=1):
     fatal(msg + ': ' + type(e).__name__ + ': ' + str(e), code)
 
-# this is from http://stackoverflow.com/questions/27227221/error-when-using-xml-api-findall-in-with-python-2-6
-def resolve_xpath(xpath, namespace):
-    result = xpath
-    for short_name, url in namespace.items():
-        result = re.sub(r'\b' + short_name + ':', '{' + url + '}', result)
-    return result
-
 # this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
 def www_auth(handle):
     auth_fields = {}
