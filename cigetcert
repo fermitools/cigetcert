@@ -68,7 +68,6 @@ def usage(parser, msg):
     sys.exit(2)
 
 def fatal(msg, code=1):
-    global options
     if (options is None) or not options.quiet:
         if showprogress:
             print >>sys.stderr
@@ -101,7 +100,6 @@ def www_auth(handle):
 
 # function from http://stackoverflow.com/questions/4407539/python-how-to-make-an-option-to-be-required-in-optparse
 def checkRequiredOptions(parser):
-    global options
     missing_options = []
     for option in parser.option_list:
         if re.search('\(required\)$', option.help) and eval('options.' + option.dest) is None:
@@ -182,7 +180,6 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
 
     # also don't raise an exception for 401 Not authorized errors
     def http_error_401(self, request, response, code, msg, hdrs):
-        global options
         if options.debug:
             print "###### Ignoring Not authorized"
         return response
