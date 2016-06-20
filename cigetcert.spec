@@ -55,6 +55,7 @@ rm -rf $RPM_BUILD_ROOT
 %changelog
 - Add wrapper script to unset PYTHONPATH and LD_LIBRARY_PATH
 - Pre-compile cigetcert python source
+- Avoid stack trace crash on el5 when previous outfile is empty
 
 * Mon Apr 04 2016 Dave Dykstra <dwd@fnal.gov> 1.1-1
 - Create the output file with O_EXCL.
