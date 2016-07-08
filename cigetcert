@@ -423,7 +423,11 @@ def main():
         if (option.default != ("NO", "DEFAULT")) and (option.action == "store"):
             option.help += " [default: %default]"
 
-    (options, args) = parser.parse_args()
+    # look for default options in the environment
+    envopts = os.getenv("CIGETCERTOPTS", "")
+    envargs = shlex.split(envopts, True)
+
+    (options, args) = parser.parse_args(envargs + sys.argv[1:])
     if len(args) != 0:
         usage(parser, "no non-option arguments expected")
 
@@ -459,10 +463,10 @@ def main():
             print opts
             print "##### End additional options"
         try:
-            extraargs = shlex.split(opts, True)
+            serverargs = shlex.split(opts, True)
         except Exception, e:
             efatal("parsing options from %s failed" % optserver, e)
-        (options, args) = parser.parse_args(extraargs + sys.argv[1:])
+        (options, args) = parser.parse_args(serverargs + envargs + sys.argv[1:])
         if len(args) != 0:
             usage(parser, "non-option arguments found at %s" % optserver)
 

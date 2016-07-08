@@ -63,7 +63,7 @@ just a host name, the URL read is
 https://hostname/cigetcertopts.txt
 .RE
 otherwise the whole URL is read.
-This file should contain cigetcert options.
+See also CIGETCERTOPTS in the ENVIRONMENT section below.
 .RE
 .TP
 .BR \-i\ Name , \ \-\-institution\ Name
@@ -237,23 +237,37 @@ The maximum is 168.
 The default is the value of 
 .IR \-\-proxyhours.
 
+.SH "ENVIRONMENT"
+The following optional environment variables affect the operation of
+.BR cigetcert .
+.TP
+.B "CIGETCERTOPTS"
+Default options.  These options override any conflicting options from
+the optserver, but are overridden by any conflicting options from the
+command line.
+.TP
+.B "KRB5CCNAME"
+Location of a kerberos 5 credentials (ticket) cache.
+
+
 .SH EXAMPLES
 .PP
-To get a 1 week certificate in /tmp, prompting for a password:
+To get a 1 week certificate in /tmp, always prompting for a password:
 .PP
 .RS
 .nf
-cigetcert -i 'Fermi National Accelerator Laboratory'
+cigetcert --nokerberos -i 'Fermi National Accelerator Laboratory'
 .fi
 .RE
 .PP
 To get a 4 week proxy in a myproxy server and 1 week in /tmp, using
-kerberos if available, allowing retrieving by other servers and a
-maximum time for retrieved proxies retrieved of 1 day:
+kerberos if available (because it is default for the institution) and
+if not prompt for a password, allowing retrieving by other servers
+and a maximum time for retrieved proxies of 1 day:
 .PP
 .RS
 .nf
-cigetcert -k --hours=672 \\
+cigetcert --hours=672 \\
     -i 'Fermi National Accelerator Laboratory' \\
     --myproxyserver=myproxy.fnal.gov \\
     --myproxyretrievers='.*/CN=fifebatch(|1|2).fnal.gov' \\
@@ -267,6 +281,15 @@ only kerberos authentication and not password authentication:
 .RS
 .nf
 cigetcert -ns fifebatch.fnal.gov
+.fi
+.RE
+
+.PP
+To always have a default institution:
+.PP
+.RS
+.nf
+export CIGETCERTOPTS="-i 'Fermi National Accelerator Laboratory'"
 .fi
 .RE
 

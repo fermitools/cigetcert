@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Fri Jul  8 12:10:42 2016 -->
+<!-- CreationDate: Fri Jul  8 13:29:57 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -13,6 +13,7 @@
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
+<a href="#ENVIRONMENT">ENVIRONMENT</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#EXIT VALUES">EXIT VALUES</a><br>
 <a href="#AUTHOR">AUTHOR</a><br>
@@ -193,8 +194,8 @@ options. If it is just a host name, the URL read is</p></td>
 <tr valign="top" align="left">
 <td width="20%"></td>
 <td width="79%">
-<p>otherwise the whole URL is read. This file should contain
-cigetcert options.</p></td>
+<p>otherwise the whole URL is read. See also CIGETCERTOPTS
+in the ENVIRONMENT section below.</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -362,7 +363,7 @@ authentication fails then password authentication will be
 attempted. This option is the default if the IdP of the
 chosen institution has a URL marked with
 &quot;(Kerberos)&quot; in the idplistURL (unless the
-&minus;&minus;nokerberos option is also given).</p>
+&minus;&minus;nokerberos option is used).</p>
 </td>
 </table>
 <!-- INDENTATION -->
@@ -683,6 +684,54 @@ fetched from MyProxy. The maximum is 168. The default is the
 value of <i>&minus;&minus;proxyhours.</i></p>
 </td>
 </table>
+<a name="ENVIRONMENT"></a>
+<h2>ENVIRONMENT</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>The following optional environment variables affect the
+operation of <b>cigetcert</b>.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>CIGETCERTOPTS</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Default options. These options override any conflicting
+options from the optserver, but are overridden by any
+conflicting options from the command line.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>KRB5CCNAME</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Location of a kerberos 5 credentials (ticket) cache.</p>
+</td>
+</table>
 <a name="EXAMPLES"></a>
 <h2>EXAMPLES</h2>
 <!-- INDENTATION -->
@@ -691,8 +740,8 @@ value of <i>&minus;&minus;proxyhours.</i></p>
 <tr valign="top" align="left">
 <td width="10%"></td>
 <td width="89%">
-<p>To get a 1 week certificate in /tmp, prompting for a
-password:</p>
+<p>To get a 1 week certificate in /tmp, always prompting for
+a password:</p>
 </td>
 </table>
 <!-- INDENTATION -->
@@ -701,7 +750,7 @@ password:</p>
 <tr valign="top" align="left">
 <td width="20%"></td>
 <td width="79%">
-<pre>cigetcert -i &rsquo;Fermi National Accelerator Laboratory&rsquo;
+<pre>cigetcert --nokerberos -i &rsquo;Fermi National Accelerator Laboratory&rsquo;
 </pre>
 </td>
 </table>
@@ -713,9 +762,10 @@ password:</p>
 <td width="10%"></td>
 <td width="89%">
 <p>To get a 4 week proxy in a myproxy server and 1 week in
-/tmp, using kerberos if available, allowing retrieving by
-other servers and a maximum time for retrieved proxies
-retrieved of 1 day:</p>
+/tmp, using kerberos if available (because it is default for
+the institution) and if not prompt for a password, allowing
+retrieving by other servers and a maximum time for retrieved
+proxies of 1 day:</p>
 </td>
 </table>
 <!-- INDENTATION -->
@@ -724,7 +774,7 @@ retrieved of 1 day:</p>
 <tr valign="top" align="left">
 <td width="20%"></td>
 <td width="79%">
-<pre>cigetcert -k --hours=672 \
+<pre>cigetcert --hours=672 \
     -i &rsquo;Fermi National Accelerator Laboratory&rsquo; \
     --myproxyserver=myproxy.fnal.gov \
     --myproxyretrievers=&rsquo;.*/CN=fifebatch(|1|2).fnal.gov&rsquo; \
@@ -751,6 +801,26 @@ authentication:</p>
 <td width="20%"></td>
 <td width="79%">
 <pre>cigetcert -ns fifebatch.fnal.gov
+</pre>
+</td>
+</table>
+<!-- INDENTATION -->
+
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To always have a default institution:</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="20%"></td>
+<td width="79%">
+<pre>export CIGETCERTOPTS=&quot;-i &rsquo;Fermi National Accelerator Laboratory&rsquo;&quot;
 </pre>
 </td>
 </table>
