@@ -121,7 +121,14 @@ Prefer kerberos authentication with the IdP if a kerberos ticket
 is available.  When not in combination with the
 .I \-\-noprompt
 option, if kerberos authentication fails then password authentication
-will be attempted.
+will be attempted.  This option is the default if the IdP of the 
+chosen institution has a URL marked with "(Kerberos)" in the
+idplistURL (unless the \-\-nokerberos option is used).
+.TP
+.BR \ \-\-nokerberos
+Do not attempt to use kerberos authentication.  If multiple 
+\-\-kerberos and \-\-nokerberos options are given, the last one
+specified applies.
 .TP
 .BR \-n , \ \-\-noprompt
 Do not prompt for a password.  Implies

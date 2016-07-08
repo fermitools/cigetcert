@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Tue Apr 26 16:33:05 2016 -->
+<!-- CreationDate: Fri Jul  8 12:10:42 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -359,7 +359,29 @@ validity of https connections. The default is</p></td>
 ticket is available. When not in combination with the
 <i>&minus;&minus;noprompt</i> option, if kerberos
 authentication fails then password authentication will be
-attempted.</p>
+attempted. This option is the default if the IdP of the
+chosen institution has a URL marked with
+&quot;(Kerberos)&quot; in the idplistURL (unless the
+&minus;&minus;nokerberos option is also given).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>&minus;&minus;nokerberos</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Do not attempt to use kerberos authentication. If
+multiple &minus;&minus;kerberos and &minus;&minus;nokerberos
+options are given, the last one specified applies.</p>
 </td>
 </table>
 <!-- INDENTATION -->

@@ -361,8 +361,11 @@ def main():
                       metavar="path", default=defaults['capath'],
                       help="Certifying Authority certificates and CRLs directory")
     parser.add_option("-k", "--kerberos", 
-                      action="store_true", default=False,
+                      action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
+    parser.add_option("", "--nokerberos", 
+                      action="store_const", const=-1, dest="kerberos",
+                      help="do not attempt to use kerberos authentication")
     parser.add_option("-n", "--noprompt", 
                       action="store_true", default=False,
                       help="do not prompt for password (implies --kerberos)")
@@ -517,7 +520,7 @@ def main():
     if options.debug:
         options.verbose = True
     if options.noprompt:
-        options.kerberos = True
+        options.kerberos = 1
     if options.hours != options.proxyhours:
         options.proxy = True
     global showprogress
@@ -663,6 +666,8 @@ def main():
             url = line[0:idx]
             if line.endswith(' (Kerberos)'):
                 idpkrburl = url
+                if options.kerberos == 0:
+                    options.kerberos = 1
             else:
                 idpurl = url
     if idpkrburl is None:
@@ -677,7 +682,7 @@ def main():
 
     if options.debug:
         print '##### IdP URL: ' + str(idpurl)
-        if options.kerberos:
+        if options.kerberos > 0:
             print '##### Kerberos IdP URL: ' + str(idpkrburl)
 
     ### Begin the real SAML communication, starting with the SP ###
@@ -749,7 +754,7 @@ def main():
     wwwauthenticate = ""
     unauthidpurl = ""
     authidpurl = ""
-    if options.kerberos:
+    if options.kerberos > 0:
         # try Kerberos first
         unauthidpurl = idpkrburl
     elif options.noprompt:
@@ -782,7 +787,7 @@ def main():
     wwwauthenticate = dounauthrequest(unauthidpurl)
 
     idphandle = None
-    if options.kerberos:
+    if options.kerberos > 0:
         if 'negotiate' in wwwauthenticate:
             netloc = urlparse.urlsplit(idpkrburl)[1]
             hostname = re.sub(":.*", "", netloc)
