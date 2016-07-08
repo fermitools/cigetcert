@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.1"
+version = "1.2"
 
 import sys
 import os
@@ -850,7 +850,10 @@ def main():
             promptstr = promptstr.replace("%realm", realm)
         if showprogress:
             print
-        password = getpass.getpass(promptstr + ': ')
+        try:
+            password = getpass.getpass(promptstr + ': ')
+        except:
+            fatal("failed to get password")
         base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
         headers = {
             'Content-Type': 'text/xml',
