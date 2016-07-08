@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.1
+Version: 1.2
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,9 +53,16 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-- Add wrapper script to unset PYTHONPATH and LD_LIBRARY_PATH
-- Pre-compile cigetcert python source
-- Avoid stack trace crash on el5 when previous outfile is empty
+* Fri Jul 08 2016 Dave Dykstra <dwd@fnal.gov> 1.2-1
+- Try kerberos authentication first by default when the institution's
+  IdP is known to support it, without a --kerberos option.
+- Add --nokerberos option.
+- Add support for additional default options in $CIGETCERTOPTS.
+- Use getpwuid() instead of $LOGNAME for current user name.
+- Avoid stack trace crash on el5 when previous outfile is empty.
+- Avoid stack trace when password prompt is interrupted.
+- Add wrapper script to unset PYTHONPATH and LD_LIBRARY_PATH.
+- Pre-compile cigetcert python source.
 
 * Mon Apr 04 2016 Dave Dykstra <dwd@fnal.gov> 1.1-1
 - Create the output file with O_EXCL.
