@@ -70,7 +70,6 @@ rm -rf $RPM_BUILD_ROOT
 * Mon Apr 04 2016 Dave Dykstra <dwd@fnal.gov> 1.1-1
 - Create the output file with O_EXCL.
 
-%changelog
 * Tue Mar 01 2016 Dave Dykstra <dwd@fnal.gov> 1.0-1
 - Remove a pylint error and a few pylint warnings
 
