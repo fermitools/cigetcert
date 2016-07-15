@@ -802,7 +802,7 @@ def main():
             try:
                 kerberos.authGSSClientStep(krb_context, "")
             except Exception, e:
-                if options.noprompt:
+                if options.noprompt or (idpurl is None):
                     efatal("Kerberos initialization failed", e)
                 if options.verbose:
                     print "Kerberos initialization failed: %s" % e
