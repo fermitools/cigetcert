@@ -53,6 +53,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+- Allow an institution to support only kerberos authentication: don't
+  prompt for password if there's no non-kerberos IdP listed.
+
 * Fri Jul 08 2016 Dave Dykstra <dwd@fnal.gov> 1.2-1
 - Try kerberos authentication first by default when the institution's
   IdP is known to support it, without a --kerberos option.
