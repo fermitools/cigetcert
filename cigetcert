@@ -70,8 +70,8 @@ def usage(parser, msg):
 def fatal(msg, code=1):
     if (options is None) or not options.quiet:
         if showprogress:
-            print >>sys.stderr
-        print >> sys.stderr, prog + ": " + msg + '\n'
+            print
+        print >> sys.stderr, prog + ": " + msg
     sys.exit(code)
 
 # print exception type name and contents after fatal error message
