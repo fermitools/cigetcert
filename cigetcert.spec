@@ -53,8 +53,13 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 19 2016 Dave Dykstra <dwd@fnal.gov> 1.3-1
+- Add --reuseonly and --noreuseonly options.
+- When checking for reuse, do not require the institution name to
+  match the /O= in the DN.
 - Allow an institution to support only kerberos authentication: don't
   prompt for password if there's no non-kerberos IdP listed.
+- Remove extra newline at the end of fatal error messages.
 
 * Fri Jul 08 2016 Dave Dykstra <dwd@fnal.gov> 1.2-1
 - Try kerberos authentication first by default when the institution's
