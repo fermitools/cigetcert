@@ -78,6 +78,18 @@ def fatal(msg, code=1):
 def efatal(msg, e, code=1):
     fatal(msg + ': ' + type(e).__name__ + ': ' + str(e), code)
 
+def reusefail(msg, outfile, code=1):
+    global showprogress
+    if options.reuseonly > 0:
+        if showprogress:
+            print " no"
+            showprogress = False
+        if options.reuseonly == 2:
+            fatal(msg + ', and ' + outfile + ' is read-only')
+        fatal(msg + ', and --reuseonly is set')
+    if options.verbose:
+        print msg
+
 # this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
 def www_auth(handle):
     auth_fields = {}
@@ -378,6 +390,13 @@ def main():
     parser.add_option("-o", "--out", 
                       metavar="path", default="/tmp/x509up_u%uid",
                       help="file path to save certificate and key chain")
+    parser.add_option("", "--reuseonly", 
+                      action="store_const", const=1, default=0,
+                      help="only verify existing proxy can be reused " + \
+                            "[default: true if %out is read-only]")
+    parser.add_option("", "--noreuseonly", 
+                      action="store_const", const=-1, dest="reuseonly",
+                      help="turn off reuseonly; get cert if needed")
     parser.add_option("", "--minhours", 
                       type="float", metavar="num", default=12,
                       help="minimum hours remaining in existing cert chain " + \
@@ -543,110 +562,111 @@ def main():
     username = options.username.replace("%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
     myproxyusername = options.myproxyusername.replace("%username",username)
     outfile = options.out.replace("%uid", str(os.getuid()))
-    try:
-        existing = X509.load_cert(outfile)
-    except Exception, e:
-        if options.debug:
-            print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
-    else:
-        if options.verbose:
-            print "Checking if %s has at least %s hours left" % (outfile, options.minhours)
-        elif showprogress:
-            sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
-            sys.stdout.flush()
-        if str(existing.get_not_after()) == 'Bad time value':
-            # this happens on el5 when the old outfile is empty
-            time_left = 0
+    if os.path.exists(outfile):
+        if options.reuseonly == 0:
+            if not os.access(outfile, os.W_OK):
+                options.reuseonly = 2
+        try:
+            existing = X509.load_cert(outfile)
+        except Exception, e:
+            if options.reuseonly > 0:
+                showprogress = False
+                if options.reuseonly == 2:
+                    efatal('Could not load ' + outfile + ' and it is read-only', e)
+                efatal('Could not load ' + outfile + ' and --reuseonly is set', e)
+            if options.debug:
+                print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
         else:
-            time_left = asn1time_local_secs(existing.get_not_after()) - time.time()
-            if time_left < 0:
+            if options.verbose:
+                print "Checking if %s has at least %s hours left" % (outfile, options.minhours)
+            elif showprogress:
+                sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
+                sys.stdout.flush()
+            if str(existing.get_not_after()) == 'Bad time value':
+                # this happens on el5 when the old outfile is empty
                 time_left = 0
-        existingdn = existing.get_subject()
-        if existingdn.organizationName != options.institution:
-            if options.verbose:
-                print "The organization name does not match institution, skipping"
-            elif showprogress:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-        elif time_left <= (options.minhours * 60 * 60):
-            if options.verbose:
-                print "%.2f hours remaining, not enough" % (time_left / 60.0 / 60.0)
-            elif showprogress:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-        else:
-            if options.verbose:
-                print "%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0)
-            canreuse = False
-            if options.myproxyserver is None:
-                canreuse = True
             else:
-                minhours = options.hours - options.proxyhours - options.minhours
+                time_left = asn1time_local_secs(existing.get_not_after()) - time.time()
+                if time_left < 0:
+                    time_left = 0
+            if time_left <= (options.minhours * 60 * 60):
+                reusefail("%.2f hours remaining, not enough" % (time_left / 60.0 / 60.0), outfile)
+            else:
                 if options.verbose:
-                    print "Checking if %s has at least %s hours left" % \
-                            (options.myproxyserver, minhours)
-                elif showprogress:
-                    sys.stdout.write('.')
-                    sys.stdout.flush()
-
-                myproxyusername = replace_certsubject(myproxyusername, existing)
-
-                sslsock = start_myproxy_command(outfile, '2', myproxyusername,
-                                'PASSPHRASE', 0)
-
-                response, params = parse_myproxy_response(sslsock)
-                if response:
-                    if options.debug:
-                        print "##### Begin MyProxy error text"
-                        print params['ERROR']
-                        print "##### End MyProxy error text"
-                    if options.verbose:
-                        print "No info retrieved from MyProxy, continuing"
-                elif 'CRED_END_TIME' not in params:
-                    fatal('no CRED_END_TIME in info retrieved from MyProxy')
+                    print "%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0)
+                canreuse = False
+                if options.myproxyserver is None:
+                    canreuse = True
                 else:
-                    endtime = int(params['CRED_END_TIME'])
-                    time_left = endtime - int(time.time())
-                    if time_left < 0:
-                        time_left = 0
+                    minhours = options.hours - options.proxyhours - options.minhours
+                    if options.verbose:
+                        print "Checking if %s has at least %s hours left" % \
+                                (options.myproxyserver, minhours)
+                    elif showprogress:
+                        sys.stdout.write('.')
+                        sys.stdout.flush()
 
-                    if time_left <= (minhours * 60 * 60):
-                        if options.verbose:
-                            print "%.2f hours remaining, not enough" % \
-                                (time_left / 60.0 / 60.0)
+                    myproxyusername = replace_certsubject(myproxyusername, existing)
+
+                    sslsock = start_myproxy_command(outfile, '2', myproxyusername,
+                                    'PASSPHRASE', 0)
+
+                    response, params = parse_myproxy_response(sslsock)
+                    if response:
+                        if options.debug:
+                            print "##### Begin MyProxy error text"
+                            print params['ERROR']
+                            print "##### End MyProxy error text"
+                        reusefail("no info retrieved from MyProxy", outfile)
+                    elif 'CRED_END_TIME' not in params:
+                        fatal('no CRED_END_TIME in info retrieved from MyProxy')
                     else:
-                        if options.verbose:
-                            print "%.2f hours remaining, enough to reuse" % \
-                                (time_left / 60.0 / 60.0)
-                        if options.myproxyretrievers is not None:
-                            if showprogress:
-                                sys.stdout.write('.')
-                                sys.stdout.flush()
-                            if ('CRED_RETRIEVER_TRUSTED' not in params) or \
-                                (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
-                                if options.debug:
-                                    print "##### Begin MyProxy retrievers"
-                                    if 'CRED_RETRIEVER_TRUSTED' not in params:
-                                        print 'None'
-                                    else:
-                                        print params['CRED_RETRIEVER_TRUSTED']
-                                    print "##### End MyProxy retrievers"
-                                if options.verbose:
-                                    print "However the myproxyretrievers does not match"
-                            else:
-                                if options.debug:
-                                    print "myproxyretrievers also matches"
-                                canreuse = True
+                        endtime = int(params['CRED_END_TIME'])
+                        time_left = endtime - int(time.time())
+                        if time_left < 0:
+                            time_left = 0
+
+                        if time_left <= (minhours * 60 * 60):
+                            reusefail("%.2f hours remaining in MyProxy, not enough" % \
+                                    (time_left / 60.0 / 60.0), outfile)
                         else:
-                            canreuse = True
+                            if options.verbose:
+                                print "%.2f hours remaining, enough to reuse" % \
+                                    (time_left / 60.0 / 60.0)
+                            if options.myproxyretrievers is not None:
+                                if showprogress:
+                                    sys.stdout.write('.')
+                                    sys.stdout.flush()
+                                if ('CRED_RETRIEVER_TRUSTED' not in params) or \
+                                    (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
+                                    if options.debug:
+                                        print "##### Begin MyProxy retrievers"
+                                        if 'CRED_RETRIEVER_TRUSTED' not in params:
+                                            print 'None'
+                                        else:
+                                            print params['CRED_RETRIEVER_TRUSTED']
+                                        print "##### End MyProxy retrievers"
+                                    reusefail("myproxyretrievers does not match in MyProxy", outfile)
+                                else:
+                                    if options.debug:
+                                        print "myproxyretrievers also matches"
+                                    canreuse = True
+                            else:
+                                canreuse = True
 
-            if canreuse:
-                if showprogress:
-                    print " yes"
-                sys.exit(0)
+                if canreuse:
+                    if showprogress:
+                        print " yes"
+                    sys.exit(0)
 
-        if showprogress:
-            print " no"
+            if showprogress:
+                print " no"
+    else:
+        showprogress = False
+        fatal(outfile + ' does not exist and --reuseonly is set')
+
+    if (options.reuseonly > 0):
+        fatal('Program error with reuseonly -- should not reach this point')
 
     ### Look up the IdP URL
     if options.verbose:
