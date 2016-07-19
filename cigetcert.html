@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Fri Jul  8 13:36:27 2016 -->
+<!-- CreationDate: Tue Jul 19 13:28:09 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -500,6 +500,51 @@ The default is</p></td>
 <tr valign="top" align="left">
 <td width="10%"></td>
 <td width="89%">
+<p><b>&minus;&minus;reuseonly</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Only check to see if an existing certificate or proxy in
+the path of the <i>&minus;&minus;out</i> option can be
+reused (according to the algorithm shown in
+<i>&minus;&minus;minhours</i> below); do not get a new
+certificate if the old one cannot be reused. This defaults
+to true if a file at the <i>&minus;&minus;out</i> path
+already exists and is read-only, otherwise the default is
+false.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>&minus;&minus;noreuseonly</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Negate the <i>&minus;&minus;reuseonly</i> option; get a
+certificate if an old one cannot be reused. If multiple
+<i>&minus;&minus;reuseonly</i> and
+<i>&minus;&minus;noreuseonly</i> options are given, the last
+one specified applies.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
 <p><b>&minus;&minus;minhours=num</b></p></td>
 </table>
 <!-- INDENTATION -->
@@ -513,13 +558,11 @@ local certificate chain expires in order to reuse it instead
 of making a new one. This feature is intended to reduce load
 on the servers. <i>num</i> may be a floating point number to
 specify fractions of hours for this option (similarly for
-all other *hours options). The default is 12. In addition,
-the institution name has to match the &rsquo;O=&rsquo;
-organization portion of the certificate subject
-Distinguished Name (DN). Also, if myproxy options (below)
-are set, in order to reuse a proxy it has to already exist
-in the myproxy server and have a minimum number of hours
-remaining according to this formula:</p></td>
+all other *hours options). The default is 12. Also, if
+myproxy options (below) are set, in order to reuse a proxy
+it has to already exist in the myproxy server and have a
+minimum number of hours remaining according to this
+formula:</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"

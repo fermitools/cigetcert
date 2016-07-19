@@ -161,6 +161,26 @@ certificate/key chain on the local machine.  The default is
 where %uid is the the current user id.
 .RE
 .TP
+.B \-\-reuseonly
+Only check to see if an existing certificate or proxy in the path
+of the
+.I \-\-out
+option can be reused (according to the algorithm shown in
+.I \-\-minhours
+below); do not get a new certificate if the old one cannot be reused.
+This defaults to true if a file at the
+.I \-\-out
+path already exists and is read-only, otherwise the default is false.
+.TP
+.B \-\-noreuseonly
+Negate the 
+.I \-\-reuseonly
+option; get a certificate if an old one cannot be reused.  If multiple 
+.I \-\-reuseonly
+and
+.I \-\-noreuseonly
+options are given, the last one specified applies.
+.TP
 .B \-\-minhours=num
 The minimum number of hours remaining before the existing local
 certificate chain expires in order to reuse it instead of making a
@@ -170,8 +190,6 @@ This feature is intended to reduce load on the servers.
 may be a floating point number to specify fractions of hours for this
 option (similarly for all other *hours options).
 The default is 12.
-In addition, the institution name has to match the 'O=' organization
-portion of the certificate subject Distinguished Name (DN).
 Also, if myproxy options (below) are set, in order to reuse a proxy it
 has to already exist in the myproxy server and have a minimum number
 of hours remaining according to this formula:
