@@ -45,6 +45,7 @@ import base64
 import string
 import random
 import time
+import calendar
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
@@ -190,12 +191,12 @@ class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
         return response
 
 
-# Convert an ASN1_UTCTIME to local seconds since the epoch.
+# Convert an ASN1_UTCTIME to seconds since the epoch.
 # Would have used get_datetime() except it isn't supported before
 #   m2crypto 0.20 which is too new for RHEL5.
-def asn1time_local_secs(asn1time):
+def asn1time_epoch_secs(asn1time):
     timestruct = time.strptime(str(asn1time), '%b %d %H:%M:%S %Y GMT')
-    return int(time.mktime(timestruct) - time.timezone)
+    return int(calendar.timegm(timestruct))
 
 ### create a proxy certificate of a certificate ####
 # Based on code from the gridproxy library
@@ -223,7 +224,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     not_after = ASN1.ASN1_UTCTIME()
     not_after_time = now + int(lifehours * 60 * 60)
     # make sure proxy doesn't expire later than the underlying cert
-    cert_not_after_time = asn1time_local_secs(cert.get_not_after())
+    cert_not_after_time = asn1time_epoch_secs(cert.get_not_after())
     if not_after_time > cert_not_after_time:
         not_after_time = cert_not_after_time
     not_after.set_time(not_after_time)
@@ -586,7 +587,7 @@ def main():
                 # this happens on el5 when the old outfile is empty
                 time_left = 0
             else:
-                time_left = asn1time_local_secs(existing.get_not_after()) - time.time()
+                time_left = asn1time_epoch_secs(existing.get_not_after()) - time.time()
                 if time_left < 0:
                     time_left = 0
             if time_left <= (options.minhours * 60 * 60):
@@ -1096,7 +1097,7 @@ def main():
         print "issuer   : " + x509name_to_str(firstcert.get_issuer())
 
     if options.verbose or showprogress:
-        validuntil = time.ctime(asn1time_local_secs(firstcert.get_not_after()))
+        validuntil = time.ctime(asn1time_epoch_secs(firstcert.get_not_after()))
         print 'Your ' + proxyorcert + ' is valid until: ' + validuntil
 
     ### MyProxy handling section
