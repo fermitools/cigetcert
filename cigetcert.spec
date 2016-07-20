@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.2
+Version: 1.4
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Jul 20 2016 Dave Dykstra <dwd@fnal.gov> 1.4-1
+- Use more reliable method of calculating seconds since the epoch.  It
+  was off by an hour.
+- Fix broken case of proxy not previously existing without --reuseonly.
+
 * Tue Jul 19 2016 Dave Dykstra <dwd@fnal.gov> 1.3-1
 - Add --reuseonly and --noreuseonly options.
 - When checking for reuse, do not require the institution name to
