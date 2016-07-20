@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.4
+Version: 1.5
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Jul 20 2016 Dave Dykstra <dwd@fnal.gov> 1.5-1
+- Make failure to read myproxy into a reuse failure instead of a fatal
+  error, because it can be caused by an attempt to use an invalid
+  existing proxy such as a non-rfc VOMS proxy.
+
 * Wed Jul 20 2016 Dave Dykstra <dwd@fnal.gov> 1.4-1
 - Use more reliable method of calculating seconds since the epoch.  It
   was off by an hour.

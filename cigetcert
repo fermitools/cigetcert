@@ -286,7 +286,9 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
     try:
         conn.connect()
     except Exception, e:
-        efatal("failure connecting to MyProxy server %s" % options.myproxyserver,e)
+        raise Exception("error connecting to %s: %s: %s" %
+                (options.myproxyserver, type(e).__name__, str(e)))
+
     sslsock = conn.sock
     sslsock.write('0') # required by MyProxy protocol
 
@@ -609,51 +611,54 @@ def main():
 
                     myproxyusername = replace_certsubject(myproxyusername, existing)
 
-                    sslsock = start_myproxy_command(outfile, '2', myproxyusername,
-                                    'PASSPHRASE', 0)
-
-                    response, params = parse_myproxy_response(sslsock)
-                    if response:
-                        if options.debug:
-                            print "##### Begin MyProxy error text"
-                            print params['ERROR']
-                            print "##### End MyProxy error text"
-                        reusefail("no info retrieved from MyProxy", outfile)
-                    elif 'CRED_END_TIME' not in params:
-                        fatal('no CRED_END_TIME in info retrieved from MyProxy')
+                    try:
+                        sslsock = start_myproxy_command(outfile, '2', 
+                                        myproxyusername, 'PASSPHRASE', 0)
+                    except Exception, e:
+                        reusefail("reading MyProxy info failed: " + str(e), outfile)
                     else:
-                        endtime = int(params['CRED_END_TIME'])
-                        time_left = endtime - int(time.time())
-                        if time_left < 0:
-                            time_left = 0
-
-                        if time_left <= (minhours * 60 * 60):
-                            reusefail("%.2f hours remaining in MyProxy, not enough" % \
-                                    (time_left / 60.0 / 60.0), outfile)
+                        response, params = parse_myproxy_response(sslsock)
+                        if response:
+                            if options.debug:
+                                print "##### Begin MyProxy error text"
+                                print params['ERROR']
+                                print "##### End MyProxy error text"
+                            reusefail("no info retrieved from MyProxy", outfile)
+                        elif 'CRED_END_TIME' not in params:
+                            reusefail('no CRED_END_TIME in info retrieved from MyProxy', outfile)
                         else:
-                            if options.verbose:
-                                print "%.2f hours remaining, enough to reuse" % \
-                                    (time_left / 60.0 / 60.0)
-                            if options.myproxyretrievers is not None:
-                                if showprogress:
-                                    sys.stdout.write('.')
-                                    sys.stdout.flush()
-                                if ('CRED_RETRIEVER_TRUSTED' not in params) or \
-                                    (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
-                                    if options.debug:
-                                        print "##### Begin MyProxy retrievers"
-                                        if 'CRED_RETRIEVER_TRUSTED' not in params:
-                                            print 'None'
-                                        else:
-                                            print params['CRED_RETRIEVER_TRUSTED']
-                                        print "##### End MyProxy retrievers"
-                                    reusefail("myproxyretrievers does not match in MyProxy", outfile)
-                                else:
-                                    if options.debug:
-                                        print "myproxyretrievers also matches"
-                                    canreuse = True
+                            endtime = int(params['CRED_END_TIME'])
+                            time_left = endtime - int(time.time())
+                            if time_left < 0:
+                                time_left = 0
+
+                            if time_left <= (minhours * 60 * 60):
+                                reusefail("%.2f hours remaining in MyProxy, not enough" % \
+                                        (time_left / 60.0 / 60.0), outfile)
                             else:
-                                canreuse = True
+                                if options.verbose:
+                                    print "%.2f hours remaining, enough to reuse" % \
+                                        (time_left / 60.0 / 60.0)
+                                if options.myproxyretrievers is not None:
+                                    if showprogress:
+                                        sys.stdout.write('.')
+                                        sys.stdout.flush()
+                                    if ('CRED_RETRIEVER_TRUSTED' not in params) or \
+                                        (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
+                                        if options.debug:
+                                            print "##### Begin MyProxy retrievers"
+                                            if 'CRED_RETRIEVER_TRUSTED' not in params:
+                                                print 'None'
+                                            else:
+                                                print params['CRED_RETRIEVER_TRUSTED']
+                                            print "##### End MyProxy retrievers"
+                                        reusefail("myproxyretrievers does not match in MyProxy", outfile)
+                                    else:
+                                        if options.debug:
+                                            print "myproxyretrievers also matches"
+                                        canreuse = True
+                                else:
+                                    canreuse = True
 
                 if canreuse:
                     if showprogress:
@@ -1124,8 +1129,11 @@ def main():
 
     myproxyusername = replace_certsubject(myproxyusername, firstcert)
 
-    sslsock = start_myproxy_command(outfile, '5', myproxyusername,
+    try:
+        sslsock = start_myproxy_command(outfile, '5', myproxyusername,
                     '', options.myproxyhours, options.myproxyretrievers)
+    except Exception, e:
+        fatal('MyProxy store failed: ' + str(e))
 
     response, params = parse_myproxy_response(sslsock)
     if response:
@@ -1146,6 +1154,7 @@ def main():
 
     response, params = parse_myproxy_response(sslsock)
     if response:
+        # don't use efatal because no need for extra "Exception:" in message
         fatal('error from MyProxy on store: ' + params['ERROR'])
 
     if showprogress:
