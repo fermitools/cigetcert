@@ -231,7 +231,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     proxy.set_not_after(not_after)
 
     proxy.set_issuer_name(cert.get_subject())
-    digest = EVP.MessageDigest('sha1')
+    digest = EVP.MessageDigest('sha256')
     digest.update(proxykey.as_der())
     serial = struct.unpack("<L", digest.final()[:4])[0]
     proxy.set_serial_number(int(serial & 0x7fffffff))
@@ -258,7 +258,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 
     sign_pkey = EVP.PKey()
     sign_pkey.assign_rsa(certprivkey, 0)
-    proxy.sign(sign_pkey, 'sha1')
+    proxy.sign(sign_pkey, 'sha256')
 
     return (proxy.as_pem(), proxykey.as_pem(None))
 
