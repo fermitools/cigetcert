@@ -579,7 +579,7 @@ def main():
     ### Check to see if an adequate proxy or cert already exists
     username = options.username.replace("%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
     myproxyusername = options.myproxyusername.replace("%username",username)
-    outfile = options.out.replace("%uid", str(os.getuid()))
+    outfile = options.out.replace("%uid", str(os.geteuid()))
     if os.path.exists(outfile):
         if options.reuseonly == 0:
             if not os.access(outfile, os.W_OK):
