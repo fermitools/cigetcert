@@ -339,6 +339,22 @@ def parse_myproxy_response(sslsock):
     
     return response, params
 
+# This is a function because it has to be done after both times
+#  the options are processed.
+def parseargs(parser, argv):
+    global options
+    (options, args) = parser.parse_args(argv)
+    if len(args) != 0:
+        usage(parser, "no non-option arguments expected")
+
+    # This is done here because capath may be needed to retrieve
+    #  the options file.
+    if options.capath is None:
+        capath = os.getenv('X509_CERT_DIR')
+        if capath is None:
+            capath = defaults['capath']
+        options.capath = str(capath)
+
 ###  cigetcert main ####
 def main():
     global options
@@ -373,8 +389,10 @@ def main():
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath", 
-                      metavar="path", default=defaults['capath'],
-                      help="Certifying Authority certificates and CRLs directory")
+                      metavar="path", 
+                      help="Certifying Authority certificates and CRLs directory " +
+                                '[default: $X509_CERT_DIR or ' +
+                                    defaults['capath'] + ']')
     parser.add_option("-k", "--kerberos", 
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
@@ -449,9 +467,7 @@ def main():
     envopts = os.getenv("CIGETCERTOPTS", "")
     envargs = shlex.split(envopts, True)
 
-    (options, args) = parser.parse_args(envargs + sys.argv[1:])
-    if len(args) != 0:
-        usage(parser, "no non-option arguments expected")
+    parseargs(parser, envargs + sys.argv[1:])
 
     # Set up https handler/opener with cookies
     cookiejar = cookielib.CookieJar()
@@ -488,9 +504,8 @@ def main():
             serverargs = shlex.split(opts, True)
         except Exception, e:
             efatal("parsing options from %s failed" % optserver, e)
-        (options, args) = parser.parse_args(serverargs + envargs + sys.argv[1:])
-        if len(args) != 0:
-            usage(parser, "non-option arguments found at %s" % optserver)
+
+        parseargs(parser, serverargs + envargs + sys.argv[1:])
 
     if options.listinstitutions:
         idplistrequest = urllib2.Request(url=options.idplisturl)

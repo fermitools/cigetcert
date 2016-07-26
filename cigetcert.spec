@@ -53,6 +53,8 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+- Add support for $X509_CERT_DIR as the default directory for finding
+  CA certs and CRLs.
 - Use the time from the underlying certificate for the "Not Before" time
   in proxies rather than the current time.  It is typically 5 minutes
   in the past, which helps with client machines that have clock skew
