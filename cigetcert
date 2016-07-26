@@ -217,10 +217,10 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     proxy.set_pubkey(proxykey)
     proxy.set_version(2)
 
-    now = int(time.time())
     not_before = ASN1.ASN1_UTCTIME()
-    not_before.set_time(now)
+    not_before.set_time(asn1time_epoch_secs(cert.get_not_before()))
     proxy.set_not_before(not_before)
+    now = int(time.time())
     not_after = ASN1.ASN1_UTCTIME()
     not_after_time = now + int(lifehours * 60 * 60)
     # make sure proxy doesn't expire later than the underlying cert

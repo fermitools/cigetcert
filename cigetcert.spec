@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+- Use the time from the underlying certificate for the "Not Before" time
+  in proxies rather than the current time.  It is typically 5 minutes
+  in the past, which helps with client machines that have clock skew
+  up to that far in the future.
+
 * Wed Jul 20 2016 Dave Dykstra <dwd@fnal.gov> 1.5-1
 - Make failure to read myproxy into a reuse failure instead of a fatal
   error, because it can be caused by an attempt to use an invalid
