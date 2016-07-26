@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.5
+Version: 1.6
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,7 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 26 2016 Dave Dykstra <dwd@fnal.gov> 1.6-1
 - Add support for $X509_CERT_DIR as the default directory for finding
   CA certs and CRLs.
 - Use the time from the underlying certificate for the "Not Before" time
