@@ -109,7 +109,7 @@ certificates and Certificate Revocation Lists (CRLs).
 These will be used in addition to the 
 .I \-\-cafile
 certificates to verify the validity of https connections.
-The default is
+The default is $X509_CERT_DIR if it is set, otherwise
 .RS
 .RS
 /etc/grid-security/certificates
@@ -265,6 +265,11 @@ The following optional environment variables affect the operation of
 Default options.  These options override any conflicting options from
 the optserver, but are overridden by any conflicting options from the
 command line.
+.TP
+.B "X509_CERT_DIR"
+Default directory for CA certificates and CRLs.  See also the
+.I \-\-capath
+option.
 .TP
 .B "KRB5CCNAME"
 Location of a kerberos 5 credentials (ticket) cache.
