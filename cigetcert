@@ -156,10 +156,12 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         self.capath = capath
 
     def connect(self):
+        # 'sslv23' actually means to accept all, then we turn off 
+        #   insecure sslv2 & sslv3
+        context=SSL.Context('sslv23')
+        context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3)
         # the example used for M2Crypto connections was mostly 
-        #   http://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
-	context=SSL.Context('sslv23')
-	context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3)
+        #   https://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
         if (self.cert_file is not None) or (self.key_file is not None):
             context.load_cert(self.cert_file, self.key_file)
         if self.cert_chain_file is not None:
