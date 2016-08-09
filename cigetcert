@@ -46,6 +46,7 @@ import string
 import random
 import time
 import calendar
+import struct
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
@@ -205,8 +206,6 @@ def asn1time_epoch_secs(asn1time):
 # which is Copyright Lev Shamardin and covered under the GNU GPLv3 license.
 # Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
 def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
-    import struct
-
     # according to
     #   https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29#Key_generation
     # the exponent 65537 (2^16+1) is most efficient
