@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Tue Jul 26 16:55:36 2016 -->
+<!-- CreationDate: Tue Aug  9 13:01:51 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -241,7 +241,7 @@ exit.</p>
 <tr valign="top" align="left">
 <td width="10%"></td>
 <td width="89%">
-<p><b>&minus;&minus;idplistURL=URL</b></p></td>
+<p><b>&minus;&minus;idplisturl=URL</b></p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -253,7 +253,8 @@ exit.</p>
 institution names, one per line. If the institution name
 ends with &quot;(Kerberos)&quot; then that parenthetical
 ending is removed and that IdP is used when authenticating
-with kerberos. The default URL is</p></td>
+with kerberos. The URL may begin with https:// or file://.
+The default URL is</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -363,7 +364,7 @@ ticket is available. When not in combination with the
 authentication fails then password authentication will be
 attempted. This option is the default if the IdP of the
 chosen institution has a URL marked with
-&quot;(Kerberos)&quot; in the idplistURL (unless the
+&quot;(Kerberos)&quot; in the idplisturl (unless the
 &minus;&minus;nokerberos option is used).</p>
 </td>
 </table>
