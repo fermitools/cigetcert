@@ -169,8 +169,9 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
             raise RuntimeError('Could not load verify locations ' + \
                         str(self.cafile) + ' ' + str(self.capath))
         sslconn = SSL.Connection(context)
-	timeout=SSL.timeout(60)
-	sslconn.set_socket_read_timeout(timeout)
+        timeout=SSL.timeout(60)
+        socket.setdefaulttimeout(60)
+        sslconn.set_socket_read_timeout(timeout)
         sslconn.set_socket_write_timeout(timeout)
         sslconn.connect((self.host, self.port))
         self.sock = _SslSocketWrapper(sslconn)
