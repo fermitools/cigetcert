@@ -1103,22 +1103,18 @@ def main():
 	handle=os.fdopen(fd, 'w')
     except Exception, e:
         efatal("failure creating file", e)
-
-    if options.proxy:
-	try:
+    try:
+        if options.proxy:
             handle.write(proxystr)
             handle.write(proxykeystr)
             handle.write(certstr)
-        except Exception, e:
-	    efatal("failure creating file",e)
-	firstcert = proxy
-    else:
-	try:
+            firstcert = proxy
+        else:
             handle.write(certstr)
             handle.write(keystr)
-        except Exception, e:
-	    efatal("failure creating file",e)
-	firstcert = cert
+            firstcert = cert
+    except Exception, e:
+        efatal("failure writing file",e)
     handle.close()
     os.rename(path, outfile)
 
