@@ -47,6 +47,8 @@ import random
 import time
 import calendar
 import struct
+import tempfile
+
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
@@ -1099,20 +1101,24 @@ def main():
     except:
         pass
     try:
-        handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0600), 'w')
+	fd, path=tempfile.mkstemp()
+	handle=os.fdopen(fd, 'w')
     except Exception, e:
         efatal("failure creating file", e)
-
-    if options.proxy:
-        handle.write(proxystr)
-        handle.write(proxykeystr)
-        handle.write(certstr)
-        firstcert = proxy
-    else:
-        handle.write(certstr)
-        handle.write(keystr)
-        firstcert = cert
+    try:
+        if options.proxy:
+            handle.write(proxystr)
+            handle.write(proxykeystr)
+            handle.write(certstr)
+            firstcert = proxy
+        else:
+            handle.write(certstr)
+            handle.write(keystr)
+            firstcert = cert
+    except Exception, e:
+        efatal("failure writing file",e)
     handle.close()
+    os.rename(path, outfile)
 
     if options.verbose:
         print "subject  : " + x509name_to_str(firstcert.get_subject())
