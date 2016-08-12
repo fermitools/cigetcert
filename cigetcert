@@ -176,6 +176,10 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
 	if context.set_cipher_list('ALL:!eNULL:!aNULL:!ADH:!EXP:!MD5:!RC4:@STRENGTH') != 1:
             print "No valid ciphers"
         sslconn = SSL.Connection(context)
+        timeout=SSL.timeout(15)
+        sslconn.settimeout(15)
+        sslconn.set_socket_read_timeout(timeout)
+        sslconn.set_socket_write_timeout(timeout)
         sslconn.connect((self.host, self.port))
         self.sock = _SslSocketWrapper(sslconn)
 
