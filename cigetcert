@@ -141,7 +141,20 @@ class _SslSocketWrapper(object):
             # I don't like leaving the file descriptors open but without this
             #  it doesn't work.  They'll all get closed at program completion.
             return
-        return self._sock.close()
+	try:
+	    self._sock.shutdown(socket.SHUT_WR)
+	    while(1):
+		data=self._sock.recv(4096)
+	 	if not data:
+		    break
+	    return self._sock.close()
+	except Exception:
+	    #some servers do not respond to the client's close notify, generally okay
+	    return self._sock.close()
+	
+	     
+
+	
 
 # validate a certificate on an HTTPS connection with M2Crypto
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
