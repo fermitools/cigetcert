@@ -162,7 +162,10 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         # 'sslv23' actually means to accept all, then we turn off 
         #   insecure sslv2 & sslv3
         context=SSL.Context('sslv23')
-        context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3)
+        # many websites say to disable SSL compression for CRIME attack
+        #  but unfortunately m2crypto doesn't have a constant for it
+        SSL_OP_NO_COMPRESSION = 0x00020000
+        context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION)
         # the example used for M2Crypto connections was mostly 
         #   https://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
         if (self.cert_file is not None) or (self.key_file is not None):
@@ -173,7 +176,13 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         if context.load_verify_locations(self.cafile, self.capath) != 1:
             raise RuntimeError('Could not load verify locations ' + \
                         str(self.cafile) + ' ' + str(self.capath))
-	if context.set_cipher_list('ALL:!eNULL:!aNULL:!ADH:!EXP:!MD5:!RC4:@STRENGTH') != 1:
+        # The following cipher list is from "Disable weak ciphers" on
+        # https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet
+        # combined with the openssl man page at
+        # https://www.openssl.org/docs/manmaster/apps/ciphers.html
+        # You can see what remains by passing this list to
+        #   openssl ciphers -v.
+        if context.set_cipher_list('DEFAULT:!eNULL:!aNULL:!ADH:!EXP:!LOW:!MD5:!IDEA:!RC4:@STRENGTH') != 1:
             print "No valid ciphers"
         sslconn = SSL.Connection(context)
         timeout=SSL.timeout(15)
