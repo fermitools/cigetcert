@@ -125,23 +125,21 @@ def x509name_to_str(name):
 # Make a wrapper so a SSL Connection object can be opened as a file
 # this is mostly from 
 # http://git.ganeti.org/?p=ganeti.git;a=commitdiff;h=beba56ae8;hp=70c815118f7f8bf151044cb09868d1e3d7a63ac8
-_SslSocketWrapperSkipClose = True
 class _SslSocketWrapper(object):
-    def __init__(self, sock):
-        self._sock = sock
+    def __init__(self, conn):
+        self._conn = conn
     def __getattr__(self, name):
-        # forward everything to underlying socket
-        return getattr(self._sock, name)
+        # forward everything to underlying connection
+        return getattr(self._conn, name)
     def makefile(self, mode, bufsize):
-        return socket._fileobject(self._sock, mode, bufsize)
+        return socket._fileobject(self._conn, mode, bufsize)
     def close(self):
-        global _SslSocketWrapperSkipClose
-        if _SslSocketWrapperSkipClose:
-            # avoid premature closure.
-            # I don't like leaving the file descriptors open but without this
-            #  it doesn't work.  They'll all get closed at program completion.
-            return
-        return self._sock.close()
+        # m2crypto always shuts down the SSL connection in the connection
+        #  close() function
+        ret = self._conn.close()
+        if (self._conn.get_shutdown() & 1) != 1:
+            print >> sys.stderr, prog + " program warning: close did not send shutdown"
+        return ret
 
 # validate a certificate on an HTTPS connection with M2Crypto
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
