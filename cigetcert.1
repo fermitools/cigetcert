@@ -206,17 +206,17 @@ proxy on MyProxy.
 .TP
 .B \-\-hours=num
 The number of hours on the certificate created by the SP.
-The maximum is ordinarly 168 (a week), unless
+The maximum is ordinarly 277.7777 (a million seconds), unless
 .I \-\-myproxyserver
-is set; then the maximum is 9516 hours (13 months).
-The default is 168.
+is set; then the maximum is 10000 hours (a little over 13 months).
+The default is 168 (a week).
 .TP
 .B \-\-proxyhours=num
 The number of hours on a proxy certificate stored on the local filesystem.
-The maximum is 168.
+The maximum is 277.7777 (a million seconds).
 The default is the value of
 .IR \-\-hours ,
-unless it is greater than 168; then the default is 168.
+unless it is greater than 277.7777; then the default is 168 (a week).
 Implies
 .I \-\-proxy
 if not equal to the value of
@@ -253,7 +253,7 @@ username matching the value of
 .B \-\-myproxyhours=num
 The maximum number of hours of a proxy that may be fetched from 
 MyProxy.
-The maximum is 168.
+The maximum is 277.7777.
 The default is the value of 
 .IR \-\-proxyhours.
 

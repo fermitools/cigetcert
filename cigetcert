@@ -452,22 +452,24 @@ def main():
                       type="float", metavar="num", default=12,
                       help="minimum hours remaining in existing cert chain " + \
                             "to keep using it instead of making a new one")
-    weekhours = 24 * 7
-    weekstr = str(weekhours)
-    yearhours = int(24 * (365.5 + 31))
-    yearstr = str(yearhours)
-    defproxyhours = weekhours
+    maxproxyhours = 1000000.0/3600  # a million seconds
+    # note that the actual max is 277.77777... hours, but that's too ugly
+    #   for the usage message, so show only 277
+    maxproxystr = str(int(maxproxyhours))
+    maxcerthours = 10000
+    maxcertstr = str(maxcerthours)
+    defproxyhours = 24 * 7
     defproxystr = str(defproxyhours)
     parser.add_option("", "--hours", 
-                      type="float", metavar="num", default=weekhours,
+                      type="float", metavar="num", default=defproxyhours,
                       help="lifetime hours of the certificate [max: " + \
-                        weekstr + " unless --myproxyserver is set, then " + \
-                        yearstr + "]")
+                        maxproxystr + " unless --myproxyserver is set, then " + \
+                        maxcertstr + "]")
     parser.add_option("", "--proxyhours", 
                       type="float", metavar="num",
                       help="lifetime hours of a proxy certificate " + \
-                        "[max: "  + weekstr + "] [default: %hours, or " + \
-                        defproxystr + " if %hours > " + weekstr + "]")
+                        "[max: "  + maxproxystr + "] [default: %hours, or " + \
+                        defproxystr + " if %hours > " + maxproxystr + "]")
     parser.add_option("", "--proxy", 
                       action="store_true", default=False,
                       help="store proxy certificate instead of certificate in %out" + \
@@ -485,7 +487,7 @@ def main():
     parser.add_option("", "--myproxyhours", 
                       type="float", metavar="num",
                       help="max lifetime hours of a proxy fetched from MyProxy" + \
-                        " [max: " + weekstr + "] [default: %proxyhours]")
+                        " [max: " + maxproxystr + "] [default: %proxyhours]")
 
 
     # add default value (if any) to the help messages that are strings
@@ -557,7 +559,7 @@ def main():
     checkRequiredOptions(parser)
 
     # calculate defaults for options that are too complex for "default" keyword
-    if options.hours > weekhours:
+    if options.hours > maxproxyhours:
         if options.proxyhours is None:
             options.proxyhours = defproxyhours
     elif options.proxyhours is None:
@@ -565,27 +567,30 @@ def main():
     if options.myproxyhours is None:
         options.myproxyhours = options.proxyhours
 
+    # In error messages show the actual max, not the truncated one.
+    # This does round up, so make the comparisons be >= rather than >.
+    maxproxystr = str(maxproxyhours)
     # check for min and max
     if options.minhours < 0:
         fatal('--minhours must be non-negative')
     if options.hours < 0:
         fatal('--hours must be non-negative')
-    if (options.hours > weekhours) and (options.myproxyserver is None):
-        fatal('--hours > ' + weekstr + ' and --myproxyserver not set')
-    if options.hours > yearhours:
-        fatal('--hours must be <= ' + yearstr)
+    if (options.hours >= maxproxyhours) and (options.myproxyserver is None):
+        fatal('--hours >= ' + maxproxystr + ' and --myproxyserver not set')
+    if options.hours > maxcerthours:
+        fatal('--hours must be <= ' + maxcertstr)
     if options.proxyhours < 0:
         fatal('--proxyhours must be non-negative')
-    if options.proxyhours > weekhours:
-        fatal('--proxyhours must <= ' + weekstr)
+    if options.proxyhours >= maxproxyhours:
+        fatal('--proxyhours must be < ' + maxproxystr)
     if options.proxyhours > options.hours:
-        fatal('--proxyhours must <= --hours')
+        fatal('--proxyhours must be <= --hours')
     if options.myproxyhours < 0:
         fatal('--myproxyhours must be non-negative')
-    if options.myproxyhours > weekhours:
-        fatal('--myproxyhours must <= ' + weekstr)
+    if options.myproxyhours >= maxproxyhours:
+        fatal('--myproxyhours must be < ' + maxproxystr)
     if options.myproxyhours > options.hours:
-        fatal('--myproxyhours must <= --hours')
+        fatal('--myproxyhours must be <= --hours')
 
     # set implied options
     if options.debug:
