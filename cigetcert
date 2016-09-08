@@ -790,6 +790,8 @@ def main():
     except Exception, e:
         efatal("first request to SP %s failed" % options.spurl, e)
     
+    # etree can be attacked by unsanitized sources, but the sources are
+    #  all trusted because the host certs are verified so no worries.
     spetree = etree.XML(sphandle.read())
 
     if options.debug:
