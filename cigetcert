@@ -294,6 +294,13 @@ def replace_certsubject(strng, cert):
         certsubject = issuer
     return strng.replace('%certsubject', certsubject)
 
+# This function was borrowed from http://stackoverflow.com/a/93029
+# It is used below to sanitize input that could come from the user
+control_chars = ''.join(map(unichr, range(0,32) + range(127,160)))
+control_char_re = re.compile('[%s]' % re.escape(control_chars))
+def remove_control_chars(s):
+    return control_char_re.sub('', s)
+
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
 def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
@@ -315,8 +322,10 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
 
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=' + str(command) + '\n'
-    storecmd += 'USERNAME=' + username + '\n'
-    storecmd += 'PASSPHRASE=' + passphrase + '\n'
+    # without the 'str' on the next two lines, there can be unicode
+    #  characters which myproxy objects to with a parsing error
+    storecmd += 'USERNAME=' + str(remove_control_chars(username)) + '\n'
+    storecmd += 'PASSPHRASE=' + str(remove_control_chars(passphrase)) + '\n'
     storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
     if retrievers is not None:
         storecmd += 'RETRIEVER_TRUSTED=' + retrievers + '\n'
