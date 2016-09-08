@@ -282,6 +282,10 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 # replace %certsubject in string with certificate subject
 # the passed-in certificate may be either a base certificate or one
 #   level of proxy above it
+# Note: this isn't a general function for finding the real subject,
+#   but it is sufficient for how it is used in cigetcert.  It does
+#   not work on a proxy-of-a-proxy, for example if somebody does
+#   voms-proxy-init -noregen on a proxy made by cigetcert.
 # return replaced string
 def replace_certsubject(strng, cert):
     certsubject = x509name_to_str(cert.get_subject())
