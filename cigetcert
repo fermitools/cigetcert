@@ -322,6 +322,8 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
 
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=' + str(command) + '\n'
+    # without the 'str' on the next two lines, there can be unicode
+    #  characters which myproxy objects to with a parsing error
     storecmd += 'USERNAME=' + str(remove_control_chars(username)) + '\n'
     storecmd += 'PASSPHRASE=' + str(remove_control_chars(passphrase)) + '\n'
     storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
