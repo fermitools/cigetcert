@@ -516,7 +516,12 @@ def main():
                 print "###### Ignoring redirect"
             return response
     noredirecthandler = NoRedirectHandler()
-    opener = urllib2.build_opener(cookiehandler, noredirecthandler, httpshandler)
+    # Prevent http connections
+    class NoHttpHandler(urllib2.HTTPHandler):
+        def http_open(self, req):
+            raise Exception('only https:// and file:// supported')
+    nohttphandler = NoHttpHandler()
+    opener = urllib2.build_opener(cookiehandler, noredirecthandler, nohttphandler, httpshandler)
     if options.optserver is not None:
         # read additional options from optserver
         optserver = options.optserver
