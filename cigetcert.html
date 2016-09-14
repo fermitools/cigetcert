@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Tue Jul 26 16:55:36 2016 -->
+<!-- CreationDate: Wed Sep 14 14:51:50 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -241,7 +241,7 @@ exit.</p>
 <tr valign="top" align="left">
 <td width="10%"></td>
 <td width="89%">
-<p><b>&minus;&minus;idplistURL=URL</b></p></td>
+<p><b>&minus;&minus;idplisturl=URL</b></p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -253,7 +253,8 @@ exit.</p>
 institution names, one per line. If the institution name
 ends with &quot;(Kerberos)&quot; then that parenthetical
 ending is removed and that IdP is used when authenticating
-with kerberos. The default URL is</p></td>
+with kerberos. The URL may begin with https:// or file://.
+The default URL is</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -329,8 +330,7 @@ the validity of https connections. The default is</p></td>
 <td width="21%"></td>
 <td width="77%">
 <p>The path to a directory containing Certifying Authority
-(CA) certificates and Certificate Revocation Lists (CRLs).
-These will be used in addition to the
+(CA) certificates. These will be used in addition to the
 <i>&minus;&minus;cafile</i> certificates to verify the
 validity of https connections. The default is $X509_CERT_DIR
 if it is set, otherwise</p></td>
@@ -363,7 +363,7 @@ ticket is available. When not in combination with the
 authentication fails then password authentication will be
 attempted. This option is the default if the IdP of the
 chosen institution has a URL marked with
-&quot;(Kerberos)&quot; in the idplistURL (unless the
+&quot;(Kerberos)&quot; in the idplisturl (unless the
 &minus;&minus;nokerberos option is used).</p>
 </td>
 </table>
@@ -493,7 +493,7 @@ The default is</p></td>
 <tr valign="top" align="left">
 <td width="20%"></td>
 <td width="79%">
-<p>where %uid is the the current user id.</p></td>
+<p>where %uid is the the current effective user id.</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -600,9 +600,10 @@ MyProxy.</p></td>
 <td width="21%"></td>
 <td width="77%">
 <p>The number of hours on the certificate created by the SP.
-The maximum is ordinarly 168 (a week), unless
-<i>&minus;&minus;myproxyserver</i> is set; then the maximum
-is 9516 hours (13 months). The default is 168.</p>
+The maximum is ordinarly 277.7777 (a million seconds),
+unless <i>&minus;&minus;myproxyserver</i> is set; then the
+maximum is 10000 hours (a little over 13 months). The
+default is 168 (a week).</p>
 </td>
 </table>
 <!-- INDENTATION -->
@@ -620,9 +621,10 @@ is 9516 hours (13 months). The default is 168.</p>
 <td width="21%"></td>
 <td width="77%">
 <p>The number of hours on a proxy certificate stored on the
-local filesystem. The maximum is 168. The default is the
-value of <i>&minus;&minus;hours</i>, unless it is greater
-than 168; then the default is 168. Implies
+local filesystem. The maximum is 277.7777 (a million
+seconds). The default is the value of
+<i>&minus;&minus;hours</i>, unless it is greater than
+277.7777; then the default is 168 (a week). Implies
 <i>&minus;&minus;proxy</i> if not equal to the value of
 <i>&minus;&minus;hours</i>.</p>
 </td>
@@ -725,8 +727,8 @@ the username matching the value of
 <td width="21%"></td>
 <td width="77%">
 <p>The maximum number of hours of a proxy that may be
-fetched from MyProxy. The maximum is 168. The default is the
-value of <i>&minus;&minus;proxyhours.</i></p>
+fetched from MyProxy. The maximum is 277.7777. The default
+is the value of <i>&minus;&minus;proxyhours.</i></p>
 </td>
 </table>
 <a name="ENVIRONMENT"></a>
@@ -774,8 +776,8 @@ conflicting options from the command line.</p>
 <tr valign="top" align="left">
 <td width="21%"></td>
 <td width="77%">
-<p>Default directory for CA certificates and CRLs. See also
-the <i>&minus;&minus;capath</i> option.</p>
+<p>Default directory for CA certificates. See also the
+<i>&minus;&minus;capath</i> option.</p>
 </td>
 </table>
 <!-- INDENTATION -->

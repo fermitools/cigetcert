@@ -73,11 +73,12 @@ its Identity Provider (IdP).  This is required.
 .B \-\-listinstitutions
 Show the current list of available instituions and exit.
 .TP
-.B \-\-idplistURL=URL
+.B \-\-idplisturl=URL
 The URL that contains a file mapping IdP URLs to institution names,
 one per line.  If the institution name ends with "(Kerberos)" then
 that parenthetical ending is removed and that IdP is used when
-authenticating with kerberos.  The default URL is
+authenticating with kerberos.  The URL may begin with https:// or
+file://.  The default URL is
 .RS
 .RS
 https://cilogon.org/include/ecpidps.txt
@@ -104,8 +105,7 @@ The default is
 .RE
 .TP
 .B \-\-capath=path
-The path to a directory containing Certifying Authority (CA) 
-certificates and Certificate Revocation Lists (CRLs). 
+The path to a directory containing Certifying Authority (CA) certificates.
 These will be used in addition to the 
 .I \-\-cafile
 certificates to verify the validity of https connections.
@@ -123,7 +123,7 @@ is available.  When not in combination with the
 option, if kerberos authentication fails then password authentication
 will be attempted.  This option is the default if the IdP of the 
 chosen institution has a URL marked with "(Kerberos)" in the
-idplistURL (unless the \-\-nokerberos option is used).
+idplisturl (unless the \-\-nokerberos option is used).
 .TP
 .BR \ \-\-nokerberos
 Do not attempt to use kerberos authentication.  If multiple 
@@ -158,7 +158,7 @@ certificate/key chain on the local machine.  The default is
 .RS
 /tmp/x509up_%uid
 .RE
-where %uid is the the current user id.
+where %uid is the the current effective user id.
 .RE
 .TP
 .B \-\-reuseonly
@@ -206,17 +206,17 @@ proxy on MyProxy.
 .TP
 .B \-\-hours=num
 The number of hours on the certificate created by the SP.
-The maximum is ordinarly 168 (a week), unless
+The maximum is ordinarly 277.7777 (a million seconds), unless
 .I \-\-myproxyserver
-is set; then the maximum is 9516 hours (13 months).
-The default is 168.
+is set; then the maximum is 10000 hours (a little over 13 months).
+The default is 168 (a week).
 .TP
 .B \-\-proxyhours=num
 The number of hours on a proxy certificate stored on the local filesystem.
-The maximum is 168.
+The maximum is 277.7777 (a million seconds).
 The default is the value of
 .IR \-\-hours ,
-unless it is greater than 168; then the default is 168.
+unless it is greater than 277.7777; then the default is 168 (a week).
 Implies
 .I \-\-proxy
 if not equal to the value of
@@ -253,7 +253,7 @@ username matching the value of
 .B \-\-myproxyhours=num
 The maximum number of hours of a proxy that may be fetched from 
 MyProxy.
-The maximum is 168.
+The maximum is 277.7777.
 The default is the value of 
 .IR \-\-proxyhours.
 
@@ -267,7 +267,7 @@ the optserver, but are overridden by any conflicting options from the
 command line.
 .TP
 .B "X509_CERT_DIR"
-Default directory for CA certificates and CRLs.  See also the
+Default directory for CA certificates.  See also the
 .I \-\-capath
 option.
 .TP

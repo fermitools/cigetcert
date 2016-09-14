@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 #
 # cigetcert gets an X.509 certificate from an SP using the ECP profile.
 # Optionally it can also get a grid proxy certificate and/or transfer
@@ -46,6 +46,9 @@ import string
 import random
 import time
 import calendar
+import struct
+import tempfile
+
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
@@ -122,23 +125,21 @@ def x509name_to_str(name):
 # Make a wrapper so a SSL Connection object can be opened as a file
 # this is mostly from 
 # http://git.ganeti.org/?p=ganeti.git;a=commitdiff;h=beba56ae8;hp=70c815118f7f8bf151044cb09868d1e3d7a63ac8
-_SslSocketWrapperSkipClose = True
 class _SslSocketWrapper(object):
-    def __init__(self, sock):
-        self._sock = sock
+    def __init__(self, conn):
+        self._conn = conn
     def __getattr__(self, name):
-        # forward everything to underlying socket
-        return getattr(self._sock, name)
+        # forward everything to underlying connection
+        return getattr(self._conn, name)
     def makefile(self, mode, bufsize):
-        return socket._fileobject(self._sock, mode, bufsize)
+        return socket._fileobject(self._conn, mode, bufsize)
     def close(self):
-        global _SslSocketWrapperSkipClose
-        if _SslSocketWrapperSkipClose:
-            # avoid premature closure.
-            # I don't like leaving the file descriptors open but without this
-            #  it doesn't work.  They'll all get closed at program completion.
-            return
-        return self._sock.close()
+        # m2crypto always shuts down the SSL connection in the connection
+        #  close() function
+        ret = self._conn.close()
+        if (self._conn.get_shutdown() & 1) != 1:
+            print >> sys.stderr, prog + " program warning: close did not send shutdown"
+        return ret
 
 # validate a certificate on an HTTPS connection with M2Crypto
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
@@ -156,18 +157,40 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         self.capath = capath
 
     def connect(self):
+        # 'sslv23' actually means to accept all, then we turn off 
+        #   insecure sslv2 & sslv3
+        context=SSL.Context('sslv23')
+        # many websites say to disable SSL compression for CRIME attack
+        #  but unfortunately m2crypto doesn't have a constant for it
+        SSL_OP_NO_COMPRESSION = 0x00020000
+        context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION)
         # the example used for M2Crypto connections was mostly 
-        #   http://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
-        context = SSL.Context('tlsv1')
+        #   https://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
         if (self.cert_file is not None) or (self.key_file is not None):
             context.load_cert(self.cert_file, self.key_file)
         if self.cert_chain_file is not None:
             context.load_cert_chain(self.cert_chain_file)
+        # Note that m2crypto does not verify CRLs.  There is an
+        # extension package m2ext that does, but ignoring CRLs for the
+        # well-managed servers that cigetcert connects to is deemed to
+        # be an acceptable risk.
         context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
         if context.load_verify_locations(self.cafile, self.capath) != 1:
             raise RuntimeError('Could not load verify locations ' + \
                         str(self.cafile) + ' ' + str(self.capath))
+        # The following cipher list is from "Disable weak ciphers" on
+        # https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet
+        # combined with the openssl man page at
+        # https://www.openssl.org/docs/manmaster/apps/ciphers.html
+        # You can see what remains by passing this list to
+        #   openssl ciphers -v.
+        if context.set_cipher_list('DEFAULT:!eNULL:!aNULL:!ADH:!EXP:!LOW:!MD5:!IDEA:!RC4:@STRENGTH') != 1:
+            print "No valid ciphers"
         sslconn = SSL.Connection(context)
+        timeout=SSL.timeout(15)
+        sslconn.settimeout(15)
+        sslconn.set_socket_read_timeout(timeout)
+        sslconn.set_socket_write_timeout(timeout)
         sslconn.connect((self.host, self.port))
         self.sock = _SslSocketWrapper(sslconn)
 
@@ -204,8 +227,6 @@ def asn1time_epoch_secs(asn1time):
 # which is Copyright Lev Shamardin and covered under the GNU GPLv3 license.
 # Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
 def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
-    import struct
-
     # according to
     #   https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29#Key_generation
     # the exponent 65537 (2^16+1) is most efficient
@@ -231,7 +252,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     proxy.set_not_after(not_after)
 
     proxy.set_issuer_name(cert.get_subject())
-    digest = EVP.MessageDigest('sha1')
+    digest = EVP.MessageDigest('sha256')
     digest.update(proxykey.as_der())
     serial = struct.unpack("<L", digest.final()[:4])[0]
     proxy.set_serial_number(int(serial & 0x7fffffff))
@@ -258,13 +279,17 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 
     sign_pkey = EVP.PKey()
     sign_pkey.assign_rsa(certprivkey, 0)
-    proxy.sign(sign_pkey, 'sha1')
+    proxy.sign(sign_pkey, 'sha256')
 
     return (proxy.as_pem(), proxykey.as_pem(None))
 
 # replace %certsubject in string with certificate subject
 # the passed-in certificate may be either a base certificate or one
 #   level of proxy above it
+# Note: this isn't a general function for finding the real subject,
+#   but it is sufficient for how it is used in cigetcert.  It does
+#   not work on a proxy-of-a-proxy, for example if somebody does
+#   voms-proxy-init -noregen on a proxy made by cigetcert.
 # return replaced string
 def replace_certsubject(strng, cert):
     certsubject = x509name_to_str(cert.get_subject())
@@ -272,6 +297,13 @@ def replace_certsubject(strng, cert):
     if certsubject.startswith(issuer):
         certsubject = issuer
     return strng.replace('%certsubject', certsubject)
+
+# This function was borrowed from http://stackoverflow.com/a/93029
+# It is used below to sanitize input that could come from the user
+control_chars = ''.join(map(unichr, range(0,32) + range(127,160)))
+control_char_re = re.compile('[%s]' % re.escape(control_chars))
+def remove_control_chars(s):
+    return control_char_re.sub('', s)
 
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
@@ -294,8 +326,10 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
 
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=' + str(command) + '\n'
-    storecmd += 'USERNAME=' + username + '\n'
-    storecmd += 'PASSPHRASE=' + passphrase + '\n'
+    # without the 'str' on the next two lines, there can be unicode
+    #  characters which myproxy objects to with a parsing error
+    storecmd += 'USERNAME=' + str(remove_control_chars(username)) + '\n'
+    storecmd += 'PASSPHRASE=' + str(remove_control_chars(passphrase)) + '\n'
     storecmd += 'LIFETIME=' + str(int(lifehours * 60.0 * 60.0)) + '\n'
     if retrievers is not None:
         storecmd += 'RETRIEVER_TRUSTED=' + retrievers + '\n'
@@ -390,7 +424,7 @@ def main():
                       help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath", 
                       metavar="path", 
-                      help="Certifying Authority certificates and CRLs directory " +
+                      help="Certifying Authority certificates directory " +
                                 '[default: $X509_CERT_DIR or ' +
                                     defaults['capath'] + ']')
     parser.add_option("-k", "--kerberos", 
@@ -422,22 +456,24 @@ def main():
                       type="float", metavar="num", default=12,
                       help="minimum hours remaining in existing cert chain " + \
                             "to keep using it instead of making a new one")
-    weekhours = 24 * 7
-    weekstr = str(weekhours)
-    yearhours = int(24 * (365.5 + 31))
-    yearstr = str(yearhours)
-    defproxyhours = weekhours
+    maxproxyhours = 1000000.0/3600  # a million seconds
+    # note that the actual max is 277.77777... hours, but that's too ugly
+    #   for the usage message, so show only 277
+    maxproxystr = str(int(maxproxyhours))
+    maxcerthours = 10000
+    maxcertstr = str(maxcerthours)
+    defproxyhours = 24 * 7
     defproxystr = str(defproxyhours)
     parser.add_option("", "--hours", 
-                      type="float", metavar="num", default=weekhours,
+                      type="float", metavar="num", default=defproxyhours,
                       help="lifetime hours of the certificate [max: " + \
-                        weekstr + " unless --myproxyserver is set, then " + \
-                        yearstr + "]")
+                        maxproxystr + " unless --myproxyserver is set, then " + \
+                        maxcertstr + "]")
     parser.add_option("", "--proxyhours", 
                       type="float", metavar="num",
                       help="lifetime hours of a proxy certificate " + \
-                        "[max: "  + weekstr + "] [default: %hours, or " + \
-                        defproxystr + " if %hours > " + weekstr + "]")
+                        "[max: "  + maxproxystr + "] [default: %hours, or " + \
+                        defproxystr + " if %hours > " + maxproxystr + "]")
     parser.add_option("", "--proxy", 
                       action="store_true", default=False,
                       help="store proxy certificate instead of certificate in %out" + \
@@ -455,7 +491,7 @@ def main():
     parser.add_option("", "--myproxyhours", 
                       type="float", metavar="num",
                       help="max lifetime hours of a proxy fetched from MyProxy" + \
-                        " [max: " + weekstr + "] [default: %proxyhours]")
+                        " [max: " + maxproxystr + "] [default: %proxyhours]")
 
 
     # add default value (if any) to the help messages that are strings
@@ -475,14 +511,21 @@ def main():
     httpshandler = VerifiedHTTPSHandler(cafile=options.cafile, capath=options.capath)
     if options.debug:
         httpshandler.set_http_debuglevel(1)
-    # need to avoid redirects
+    # Need to avoid following the '302 Found' response in our response
+    #   to the Assertion Consumer, below.  It doesn't hurt on the other
+    #   connections os use the same handler for everything.
     class NoRedirectHandler(urllib2.HTTPRedirectHandler):
         def http_error_302(self, request, response, code, msg, hdrs):
             if options.debug:
                 print "###### Ignoring redirect"
             return response
     noredirecthandler = NoRedirectHandler()
-    opener = urllib2.build_opener(cookiehandler, noredirecthandler, httpshandler)
+    # Prevent http connections
+    class NoHttpHandler(urllib2.HTTPHandler):
+        def http_open(self, req):
+            raise Exception('only https:// and file:// supported')
+    nohttphandler = NoHttpHandler()
+    opener = urllib2.build_opener(cookiehandler, noredirecthandler, nohttphandler, httpshandler)
     if options.optserver is not None:
         # read additional options from optserver
         optserver = options.optserver
@@ -527,7 +570,7 @@ def main():
     checkRequiredOptions(parser)
 
     # calculate defaults for options that are too complex for "default" keyword
-    if options.hours > weekhours:
+    if options.hours > maxproxyhours:
         if options.proxyhours is None:
             options.proxyhours = defproxyhours
     elif options.proxyhours is None:
@@ -535,27 +578,30 @@ def main():
     if options.myproxyhours is None:
         options.myproxyhours = options.proxyhours
 
+    # In error messages show the actual max, not the truncated one.
+    # This does round up, so make the comparisons be >= rather than >.
+    maxproxystr = str(maxproxyhours)
     # check for min and max
     if options.minhours < 0:
         fatal('--minhours must be non-negative')
     if options.hours < 0:
         fatal('--hours must be non-negative')
-    if (options.hours > weekhours) and (options.myproxyserver is None):
-        fatal('--hours > ' + weekstr + ' and --myproxyserver not set')
-    if options.hours > yearhours:
-        fatal('--hours must be <= ' + yearstr)
+    if (options.hours >= maxproxyhours) and (options.myproxyserver is None):
+        fatal('--hours >= ' + maxproxystr + ' and --myproxyserver not set')
+    if options.hours > maxcerthours:
+        fatal('--hours must be <= ' + maxcertstr)
     if options.proxyhours < 0:
         fatal('--proxyhours must be non-negative')
-    if options.proxyhours > weekhours:
-        fatal('--proxyhours must <= ' + weekstr)
+    if options.proxyhours >= maxproxyhours:
+        fatal('--proxyhours must be < ' + maxproxystr)
     if options.proxyhours > options.hours:
-        fatal('--proxyhours must <= --hours')
+        fatal('--proxyhours must be <= --hours')
     if options.myproxyhours < 0:
         fatal('--myproxyhours must be non-negative')
-    if options.myproxyhours > weekhours:
-        fatal('--myproxyhours must <= ' + weekstr)
+    if options.myproxyhours >= maxproxyhours:
+        fatal('--myproxyhours must be < ' + maxproxystr)
     if options.myproxyhours > options.hours:
-        fatal('--myproxyhours must <= --hours')
+        fatal('--myproxyhours must be <= --hours')
 
     # set implied options
     if options.debug:
@@ -579,7 +625,7 @@ def main():
     ### Check to see if an adequate proxy or cert already exists
     username = options.username.replace("%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
     myproxyusername = options.myproxyusername.replace("%username",username)
-    outfile = options.out.replace("%uid", str(os.getuid()))
+    outfile = options.out.replace("%uid", str(os.geteuid()))
     if os.path.exists(outfile):
         if options.reuseonly == 0:
             if not os.access(outfile, os.W_OK):
@@ -748,6 +794,8 @@ def main():
     except Exception, e:
         efatal("first request to SP %s failed" % options.spurl, e)
     
+    # etree can be attacked by unsanitized sources, but the sources are
+    #  all trusted because the host certs are verified so no worries.
     spetree = etree.XML(sphandle.read())
 
     if options.debug:
@@ -1097,20 +1145,24 @@ def main():
     except:
         pass
     try:
-        handle = os.fdopen(os.open(outfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0600), 'w')
+	fd, path=tempfile.mkstemp()
+	handle=os.fdopen(fd, 'w')
     except Exception, e:
         efatal("failure creating file", e)
-
-    if options.proxy:
-        handle.write(proxystr)
-        handle.write(proxykeystr)
-        handle.write(certstr)
-        firstcert = proxy
-    else:
-        handle.write(certstr)
-        handle.write(keystr)
-        firstcert = cert
+    try:
+        if options.proxy:
+            handle.write(proxystr)
+            handle.write(proxykeystr)
+            handle.write(certstr)
+            firstcert = proxy
+        else:
+            handle.write(certstr)
+            handle.write(keystr)
+            firstcert = cert
+    except Exception, e:
+        efatal("failure writing file",e)
     handle.close()
+    os.rename(path, outfile)
 
     if options.verbose:
         print "subject  : " + x509name_to_str(firstcert.get_subject())
