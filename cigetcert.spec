@@ -54,7 +54,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 * Wed Sep 14 2016 Dave Dykstra <dwd@fnal.gov> 1.7-1
-- Fix man page description of --idplisturl.
+- Fix man page description of --idplisturl
 - Do many changes in response to a code review:
   - change default python to the system python in /usr/bin
   - always cleanly shutdown SSL connections to avoid truncation attacks
@@ -77,6 +77,9 @@ rm -rf $RPM_BUILD_ROOT
     file as cigetcert creates it
   - catch any errors writing the output file to avoid a stack trace
   - add some explanatory comments to the source code
+- Add support for Debian
+  - Allow alternate default cafile of /etc/ssl/certs/ca-certificates.crt
+  - Only use SSL.Connection.settimeout if it is present
 
 * Tue Jul 26 2016 Dave Dykstra <dwd@fnal.gov> 1.6-1
 - Add support for $X509_CERT_DIR as the default directory for finding
