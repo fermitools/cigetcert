@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.6
+Version: 1.7
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,8 +53,30 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-
+* Wed Sep 14 2016 Dave Dykstra <dwd@fnal.gov> 1.7-1
 - Fix man page description of --idplisturl.
+- Do many changes in response to a code review:
+  - change default python to the system python in /usr/bin
+  - always cleanly shutdown SSL connections to avoid truncation attacks
+  - support all TLS versions, not just v1.0
+  - disable the possibility of SSL compression to avoid CRIME attack
+  - disable SSL ciphers known to be insecure
+  - document the fact that CRLs are not actually checked (this is deemed
+    to be an acceptable risk)
+  - set a timeout on SSL connections to 15 seconds
+  - change the message digest on proxies from sha1 to sha256
+  - sanitize user input sent directly to myproxy (that is, the username)
+  - change maximum proxy duration to a million seconds (277 hours) and
+    maximum certificate duration to 10000 hours, leaving the defaults
+    as they were
+  - disable support for http:// URLs; everything has to be https:// (or
+    in some cases file://)
+  - use effective uid rather than real uid for the %uid macro
+  - use mkstemp() to create the output in a temporary file, in order to
+    avoid race conditions where another process could be reading the
+    file as cigetcert creates it
+  - catch any errors writing the output file to avoid a stack trace
+  - add some explanatory comments to the source code
 
 * Tue Jul 26 2016 Dave Dykstra <dwd@fnal.gov> 1.6-1
 - Add support for $X509_CERT_DIR as the default directory for finding
