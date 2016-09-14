@@ -170,6 +170,10 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
             context.load_cert(self.cert_file, self.key_file)
         if self.cert_chain_file is not None:
             context.load_cert_chain(self.cert_chain_file)
+        # Note that m2crypto does not verify CRLs.  There is an
+        # extension package m2ext that does, but ignoring CRLs for the
+        # well-managed servers that cigetcert connects to is deemed to
+        # be an acceptable risk.
         context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
         if context.load_verify_locations(self.cafile, self.capath) != 1:
             raise RuntimeError('Could not load verify locations ' + \
@@ -420,7 +424,7 @@ def main():
                       help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath", 
                       metavar="path", 
-                      help="Certifying Authority certificates and CRLs directory " +
+                      help="Certifying Authority certificates directory " +
                                 '[default: $X509_CERT_DIR or ' +
                                     defaults['capath'] + ']')
     parser.add_option("-k", "--kerberos", 
