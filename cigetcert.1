@@ -73,11 +73,12 @@ its Identity Provider (IdP).  This is required.
 .B \-\-listinstitutions
 Show the current list of available instituions and exit.
 .TP
-.B \-\-idplistURL=URL
+.B \-\-idplisturl=URL
 The URL that contains a file mapping IdP URLs to institution names,
 one per line.  If the institution name ends with "(Kerberos)" then
 that parenthetical ending is removed and that IdP is used when
-authenticating with kerberos.  The default URL is
+authenticating with kerberos.  The URL may begin with https:// or
+file://.  The default URL is
 .RS
 .RS
 https://cilogon.org/include/ecpidps.txt
@@ -122,7 +123,7 @@ is available.  When not in combination with the
 option, if kerberos authentication fails then password authentication
 will be attempted.  This option is the default if the IdP of the 
 chosen institution has a URL marked with "(Kerberos)" in the
-idplistURL (unless the \-\-nokerberos option is used).
+idplisturl (unless the \-\-nokerberos option is used).
 .TP
 .BR \ \-\-nokerberos
 Do not attempt to use kerberos authentication.  If multiple 

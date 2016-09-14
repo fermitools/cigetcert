@@ -53,6 +53,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+
+- Fix man page description of --idplisturl.
+
 * Tue Jul 26 2016 Dave Dykstra <dwd@fnal.gov> 1.6-1
 - Add support for $X509_CERT_DIR as the default directory for finding
   CA certs and CRLs.
