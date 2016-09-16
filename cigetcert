@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.6"
+version = "1.8"
 
 import sys
 import os
@@ -290,18 +290,19 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     return (proxy.as_pem(), proxykey.as_pem(None))
 
 # replace %certsubject in string with certificate subject
-# the passed-in certificate may be either a base certificate or one
-#   level of proxy above it
-# Note: this isn't a general function for finding the real subject,
-#   but it is sufficient for how it is used in cigetcert.  It does
-#   not work on a proxy-of-a-proxy, for example if somebody does
-#   voms-proxy-init -noregen on a proxy made by cigetcert.
+# The passed-in certificate may be either a base certificate, a proxy, or a
+#   proxy of a proxy, so strip off any proxy portions of the subject to get
+#   to the base name.  That is, any endings of /CN=[0-9]+ or /CN=proxy.
+#   The latter is for a non-rfc proxy which MyProxy rejects, but it could
+#   be used if someone isn't using MyProxy.
 # return replaced string
 def replace_certsubject(strng, cert):
     certsubject = x509name_to_str(cert.get_subject())
-    issuer = x509name_to_str(cert.get_issuer())
-    if certsubject.startswith(issuer):
-        certsubject = issuer
+    while True:
+        newsubj = re.sub('/CN=(proxy|[0-9]+)$', '', certsubject)
+        if newsubj == certsubject:
+            break
+        certsubject = newsubj
     return strng.replace('%certsubject', certsubject)
 
 # This function was borrowed from http://stackoverflow.com/a/93029
