@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.7
+Version: 1.8
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,13 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Sep 16 2016 Dave Dykstra <dwd@fnal.gov> 1.8-1
+- Allow a previous output file to have additional proxy layers added
+  on to it when checking to see if it is still valid.  That is, strip
+  off any number of /CN=[0-9]+ or /CN=proxy patterns appended to the
+  certificate subject.  In particular this is useful for when someone
+  does voms-proxy-init -noregen after a previous run of cigetcert.
+
 * Wed Sep 14 2016 Dave Dykstra <dwd@fnal.gov> 1.7-1
 - Fix man page description of --idplisturl
 - Do many changes in response to a code review:
