@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.8"
+version = "1.9"
 
 import sys
 import os
@@ -452,8 +452,9 @@ def main():
                       metavar="str", default="%currentuser",
                       help="username for authentication")
     parser.add_option("-o", "--out", 
-                      metavar="path", default="/tmp/x509up_u%uid",
-                      help="file path to save certificate and key chain")
+                      metavar="path", 
+                      help="file path to save certificate and key chain " + \
+                            "[default: $X509_USER_PROXY or /tmp/x509up_u%uid]")
     parser.add_option("", "--reuseonly", 
                       action="store_const", const=1, default=0,
                       help="only verify existing proxy can be reused " + \
@@ -579,6 +580,10 @@ def main():
     checkRequiredOptions(parser)
 
     # calculate defaults for options that are too complex for "default" keyword
+    if options.out is None:
+        options.out = os.getenv("X509_USER_PROXY")
+        if options.out is None:
+            options.out = "/tmp/x509up_u%uid"
     if options.hours > maxproxyhours:
         if options.proxyhours is None:
             options.proxyhours = defproxyhours

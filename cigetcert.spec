@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.8
+Version: 1.9
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Sep 22 2016 Dave Dykstra <dwd@fnal.gov> 1.9-1
+- Add support for $X509_USER_PROXY as the default value of --out.
+
 * Fri Sep 16 2016 Dave Dykstra <dwd@fnal.gov> 1.8-1
 - Allow a previous output file to have additional proxy layers added
   on to it when checking to see if it is still valid.  That is, strip

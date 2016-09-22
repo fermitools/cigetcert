@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Fri Sep 16 07:00:36 2016 -->
+<!-- CreationDate: Thu Sep 22 15:16:05 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -349,7 +349,7 @@ the validity of https connections. The default is</p></td>
 (CA) certificates. These will be used in addition to the
 <i>&minus;&minus;cafile</i> certificates to verify the
 validity of https connections. The default is $X509_CERT_DIR
-if it is set, otherwise</p></td>
+if it is set, or otherwise the default is</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -493,7 +493,8 @@ the IdP. The default is the current user name.</p>
 <td width="77%">
 <p>The path of the file used to store the certificate/key
 chain or proxy certificate/key chain on the local machine.
-The default is</p></td>
+The default is $X509_USER_PROXY if it is set, or otherwise
+the default is</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -509,7 +510,7 @@ The default is</p></td>
 <tr valign="top" align="left">
 <td width="20%"></td>
 <td width="79%">
-<p>where %uid is the the current effective user id.</p></td>
+<p>where %uid is the current effective user id.</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -776,6 +777,25 @@ operation of <b>cigetcert</b>.</p>
 <p>Default options. These options override any conflicting
 options from the optserver, but are overridden by any
 conflicting options from the command line.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>X509_USER_PROXY</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Default location for the user&rsquo;s proxy certificate
+on the local disk. For more details see the
+<i>&minus;&minus;out</i> option.</p>
 </td>
 </table>
 <!-- INDENTATION -->
