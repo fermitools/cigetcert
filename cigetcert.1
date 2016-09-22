@@ -113,7 +113,7 @@ The path to a directory containing Certifying Authority (CA) certificates.
 These will be used in addition to the 
 .I \-\-cafile
 certificates to verify the validity of https connections.
-The default is $X509_CERT_DIR if it is set, otherwise
+The default is $X509_CERT_DIR if it is set, or otherwise the default is
 .RS
 .RS
 /etc/grid-security/certificates
@@ -158,11 +158,12 @@ The default is the current user name.
 .BR \-o\ path , \ \-\-out=path
 The path of the file used to store the certificate/key chain or proxy
 certificate/key chain on the local machine.  The default is
+$X509_USER_PROXY if it is set, or otherwise the default is
 .RS
 .RS
 /tmp/x509up_%uid
 .RE
-where %uid is the the current effective user id.
+where %uid is the current effective user id.
 .RE
 .TP
 .B \-\-reuseonly
@@ -269,6 +270,12 @@ The following optional environment variables affect the operation of
 Default options.  These options override any conflicting options from
 the optserver, but are overridden by any conflicting options from the
 command line.
+.TP
+.B "X509_USER_PROXY"
+Default location for the user's proxy certificate on the local disk.
+For more details see the
+.I \-\-out
+option.
 .TP
 .B "X509_CERT_DIR"
 Default directory for CA certificates.  See also the
