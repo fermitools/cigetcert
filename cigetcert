@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.9"
+version = "1.10"
 
 import sys
 import os
