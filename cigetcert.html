@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Thu Sep 22 15:16:05 2016 -->
+<!-- CreationDate: Wed Sep 28 16:42:44 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -576,11 +576,11 @@ local certificate chain expires in order to reuse it instead
 of making a new one. This feature is intended to reduce load
 on the servers. <i>num</i> may be a floating point number to
 specify fractions of hours for this option (similarly for
-all other *hours options). The default is 12. Also, if
+all other *hours options). The default is 1. Also, if
 myproxy options (below) are set, in order to reuse a proxy
 it has to already exist in the myproxy server and have a
-minimum number of hours remaining according to this
-formula:</p></td>
+minimum number of hours remaining that is at least the
+greater of %minhours or</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
@@ -588,7 +588,7 @@ formula:</p></td>
 <tr valign="top" align="left">
 <td width="30%"></td>
 <td width="69%">
-<p>(%hours - %proxyhours) &gt; %minhours</p></td>
+<p>(%hours - %proxyhours - %minhours)</p></td>
 </table>
 <!-- INDENTATION -->
 <table width="100%" border=0 rules="none" frame="void"
