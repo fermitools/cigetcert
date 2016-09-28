@@ -463,7 +463,7 @@ def main():
                       action="store_const", const=-1, dest="reuseonly",
                       help="turn off reuseonly; get cert if needed")
     parser.add_option("", "--minhours", 
-                      type="float", metavar="num", default=12,
+                      type="float", metavar="num", default=1.0,
                       help="minimum hours remaining in existing cert chain " + \
                             "to keep using it instead of making a new one")
     maxproxyhours = 1000000.0/3600  # a million seconds
@@ -628,12 +628,17 @@ def main():
     if not options.quiet and not options.verbose:
         showprogress = True
 
+    myproxyminhours = options.hours - options.proxyhours - options.minhours
+    if myproxyminhours < options.minhours:
+        myproxyminhours = options.minhours
     if options.debug:
         print "###### Durations:"
         print "minhours: " + str(options.minhours)
         print "hours: " + str(options.hours)
         print "proxyhours: " + str(options.proxyhours)
-        print "myproxyhours: " + str(options.myproxyhours)
+        if options.myproxyserver is not None:
+            print "myproxyminhours: " + str(myproxyminhours)
+            print "myproxyhours: " + str(options.myproxyhours)
         print
 
     ### Check to see if an adequate proxy or cert already exists
@@ -656,7 +661,8 @@ def main():
                 print 'Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e
         else:
             if options.verbose:
-                print "Checking if %s has at least %s hours left" % (outfile, options.minhours)
+                print "Checking if %s has at least %s hours left" % \
+                        (outfile, options.minhours)
             elif showprogress:
                 sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
                 sys.stdout.flush()
@@ -676,10 +682,9 @@ def main():
                 if options.myproxyserver is None:
                     canreuse = True
                 else:
-                    minhours = options.hours - options.proxyhours - options.minhours
                     if options.verbose:
                         print "Checking if %s has at least %s hours left" % \
-                                (options.myproxyserver, minhours)
+                                (options.myproxyserver, myproxyminhours)
                     elif showprogress:
                         sys.stdout.write('.')
                         sys.stdout.flush()
@@ -707,7 +712,7 @@ def main():
                             if time_left < 0:
                                 time_left = 0
 
-                            if time_left <= (minhours * 60 * 60):
+                            if time_left <= (myproxyminhours * 60 * 60):
                                 reusefail("%.2f hours remaining in MyProxy, not enough" % \
                                         (time_left / 60.0 / 60.0), outfile)
                             else:

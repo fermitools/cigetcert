@@ -194,13 +194,13 @@ This feature is intended to reduce load on the servers.
 .I num
 may be a floating point number to specify fractions of hours for this
 option (similarly for all other *hours options).
-The default is 12.
+The default is 1.
 Also, if myproxy options (below) are set, in order to reuse a proxy it
 has to already exist in the myproxy server and have a minimum number
-of hours remaining according to this formula:
+of hours remaining that is at least the greater of %minhours or
 .RS
 .RS
-(%hours - %proxyhours) > %minhours
+(%hours - %proxyhours - %minhours)
 .RE
 where the '%' names are the values of the corresponding options.
 Finally, if the
