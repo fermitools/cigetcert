@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.10"
+version = "1.11"
 
 import sys
 import os
@@ -44,6 +44,7 @@ import getpass
 import base64
 import string
 import random
+import math
 import time
 import calendar
 import struct
@@ -622,7 +623,10 @@ def main():
         options.verbose = True
     if options.noprompt:
         options.kerberos = 1
-    if options.hours != options.proxyhours:
+        options.proxy = True
+    elif options.hours != int(options.hours):
+        # not a whole number; make a proxy because cert will be
+        #  rounded up to the next hour (it can only be whole number)
         options.proxy = True
     global showprogress
     if not options.quiet and not options.verbose:
@@ -1087,7 +1091,7 @@ def main():
         ('submit' , 'pkcs12'),
         ('CSRF' , csrfstr),
         ('p12password' , p12password),
-        ('p12lifetime' , int(options.hours))
+        ('p12lifetime' , math.ceil(options.hours))
     ]
     certformdata = urllib.urlencode(certformvars)
 

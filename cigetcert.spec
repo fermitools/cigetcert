@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.10
+Version: 1.11
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Sep 29 2016 Dave Dykstra <dwd@fnal.gov> 1.11-1
+- If the requested --hours is fractional, round the hours of the
+  original certificate up to the next whole number rather than down.
+  In this case generate a proxy with the requested fractional hours.
+
 * Wed Sep 28 2016 Dave Dykstra <dwd@fnal.gov> 1.10-1
 - Change default --minhours value from 12 to 1.
 - If the formula calculating the remaining hours in the myproxy cert

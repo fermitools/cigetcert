@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.18.1.1 -->
-<!-- CreationDate: Wed Sep 28 16:42:44 2016 -->
+<!-- CreationDate: Thu Sep 29 10:01:02 2016 -->
 <html>
 <head>
 <meta name="generator" content="groff -Thtml, see www.gnu.org">
@@ -619,7 +619,10 @@ MyProxy.</p></td>
 <p>The number of hours on the certificate created by the SP.
 The maximum is ordinarly 277.7777 (a million seconds),
 unless <i>&minus;&minus;myproxyserver</i> is set; then the
-maximum is 10000 hours (a little over 13 months). The
+maximum is 10000 hours (a little over 13 months). If a
+fractional number of hours is requested, the actual
+certificate will be rounded up to the next whole hour but
+there will be a proxy generated with the requested time. The
 default is 168 (a week).</p>
 </td>
 </table>
@@ -665,7 +668,9 @@ filesystem instead of the original certificate/key chain
 created by the SP. Throw away the key of the original
 certificate. This option is implied when the value of
 <i>&minus;&minus;hours</i> does not match the value of
-<i>&minus;&minus;proxyhours</i>.</p>
+<i>&minus;&minus;proxyhours</i>. It is also implied when
+<b>&minus;&minus;hours</b> is not a whole number, because
+the original certificate cannot be fractions of an hour.</p>
 </td>
 </table>
 <!-- INDENTATION -->
