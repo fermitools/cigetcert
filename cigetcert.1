@@ -214,6 +214,9 @@ The number of hours on the certificate created by the SP.
 The maximum is ordinarly 277.7777 (a million seconds), unless
 .I \-\-myproxyserver
 is set; then the maximum is 10000 hours (a little over 13 months).
+If a fractional number of hours is requested, the actual certificate
+will be rounded up to the next whole hour but there will be a proxy
+generated with the requested time.
 The default is 168 (a week).
 .TP
 .B \-\-proxyhours=num
@@ -235,6 +238,10 @@ value of
 .I \-\-hours
 does not match the value of
 .IR \-\-proxyhours .
+It is also implied when 
+.B \-\-hours
+is not a whole number, because the original certificate cannot be
+fractions of an hour.
 .TP
 .B \-\-myproxyserver=Host
 Host name of a MyProxy server for storing a proxy certificate/key chain.
