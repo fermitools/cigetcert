@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.11"
+version = "1.12"
 
 import sys
 import os
@@ -623,6 +623,7 @@ def main():
         options.verbose = True
     if options.noprompt:
         options.kerberos = 1
+    if options.hours != options.proxyhours:
         options.proxy = True
     elif options.hours != int(options.hours):
         # not a whole number; make a proxy because cert will be
