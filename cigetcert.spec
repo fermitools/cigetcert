@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.11
+Version: 1.12
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Oct 06 2016 Dave Dykstra <dwd@fnal.gov> 1.12-1
+- Fix bug introduced in 1.11-1 that caused too-long certificates to
+  be stored on local disk.
+
 * Thu Sep 29 2016 Dave Dykstra <dwd@fnal.gov> 1.11-1
 - If the requested --hours is fractional, round the hours of the
   original certificate up to the next whole number rather than down.
