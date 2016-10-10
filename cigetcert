@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.12"
+version = "1.13"
 
 import sys
 import os
@@ -1169,7 +1169,7 @@ def main():
     except:
         pass
     try:
-	fd, path=tempfile.mkstemp()
+	fd,path=tempfile.mkstemp(prefix=os.path.dirname(outfile)+'/.cigetcert')
 	handle=os.fdopen(fd, 'w')
     except Exception, e:
         efatal("failure creating file", e)
@@ -1186,7 +1186,14 @@ def main():
     except Exception, e:
         efatal("failure writing file",e)
     handle.close()
-    os.rename(path, outfile)
+    try:
+        os.rename(path, outfile)
+    except Exception, e:
+        try:
+            os.remove(outfile);
+        except:
+            pass
+        efatal("failure renaming " + path + " to " + outfile, e)
 
     if options.verbose:
         print "subject  : " + x509name_to_str(firstcert.get_subject())
