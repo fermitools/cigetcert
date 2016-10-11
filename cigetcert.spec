@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.13
+Version: 1.14
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Oct 11 2016 Dave Dykstra <dwd@fnal.gov> 1.14-1
+- Limit the number of proxy levels stripped off of %certsubject to 5.
+  This is to catch programming errors where people call voms-proxy-init
+  -noregen after every call to cigetcert, even when cigetcert determines
+  that the previous proxy can be reused.
+
 * Mon Oct 10 2016 Dave Dykstra <dwd@fnal.gov> 1.13-1
 - Choose a prefix for the temp output file in the same directory as the
   output file to avoid renaming across filesystems.
