@@ -26,7 +26,7 @@
 
 
 prog = "cigetcert"
-version = "1.13"
+version = "1.14"
 
 import sys
 import os
@@ -295,13 +295,19 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 #   proxy of a proxy, so strip off any proxy portions of the subject to get
 #   to the base name.  That is, any endings of /CN=[0-9]+ or /CN=proxy.
 #   The latter is for a non-rfc proxy which MyProxy rejects, but it could
-#   be used if someone isn't using MyProxy.
+#   be used if someone isn't using MyProxy.  In order to catch programming
+#   errors, don't strip off more than 5 levels of proxies.
 # return replaced string
 def replace_certsubject(strng, cert):
     certsubject = x509name_to_str(cert.get_subject())
+    levels = 0
     while True:
         newsubj = re.sub('/CN=(proxy|[0-9]+)$', '', certsubject)
         if newsubj == certsubject:
+            break
+        levels += 1
+        if (levels > 5) and options.verbose:
+            print "Too many levels of proxies, more than 5"
             break
         certsubject = newsubj
     return strng.replace('%certsubject', certsubject)
