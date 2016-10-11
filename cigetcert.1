@@ -252,7 +252,7 @@ which is the value of
 .B \-\-myproxyusername=str
 The username of the proxy stored in the MyProxy server.
 The default is %certsubject which gets replaced with the base certificate
-subject DN (without any proxy additions).
+subject DN (after stripping off up to 5 proxy levels).
 The string may contain %username which is replaced with the value of
 .IR \-\-username .
 .TP
