@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.14
+Version: 1.15
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Oct 17 2016 Dave Dykstra <dwd@fnal.gov> 1.15-1
+- Fix bug that caused the proxy to be stored into MyProxy under the DN
+  of a previous certificate (if it existed but could not be reused)
+  rather than the newly generated one.
+
 * Tue Oct 11 2016 Dave Dykstra <dwd@fnal.gov> 1.14-1
 - Limit the number of proxy levels stripped off of %certsubject to 5.
   This is to catch programming errors where people call voms-proxy-init
