@@ -700,11 +700,11 @@ def main():
                         sys.stdout.write('.')
                         sys.stdout.flush()
 
-                    myproxyusername = replace_certsubject(myproxyusername, existing)
+                    myproxyinfousername = replace_certsubject(myproxyusername, existing)
 
                     try:
                         sslsock = start_myproxy_command(outfile, '2', 
-                                        myproxyusername, 'PASSPHRASE', 0)
+                                        myproxyinfouserusername, 'PASSPHRASE', 0)
                     except Exception, e:
                         reusefail("reading MyProxy info failed: " + str(e), outfile)
                     else:
