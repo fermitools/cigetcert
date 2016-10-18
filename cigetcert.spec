@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.15
+Version: 1.16
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Oct 18 2016 Dave Dykstra <dwd@fnal.gov> 1.16-1
+- Fix typo in the variable name added in the last version.  This was
+  not noticed because it was caught in an exception and caused it to
+  always behave as if a previous proxy stored in myproxy could not be
+  used.
+
 * Mon Oct 17 2016 Dave Dykstra <dwd@fnal.gov> 1.15-1
 - Fix bug that caused the proxy to be stored into MyProxy under the DN
   of a previous certificate (if it existed but could not be reused)
