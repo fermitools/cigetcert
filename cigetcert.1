@@ -1,0 +1,357 @@
+.TH cigetcert 1
+.SH NAME
+cigetcert \- get an X.509 certificate using SAML ECP and store proxies
+
+.SH SYNOPSIS
+.B cigetcert
+.RI [ OPTION ]...
+
+.SH DESCRIPTION
+.B cigetcert
+gets an X.509 certificate from a SAML 2.0 Service Provider such as
+CILogon, using the Enhanced Client or Proxy (ECP) profile.
+It can authenticate using either kerberos or password authentication.
+It stores either the certificate or a proxy certificate on the local
+filesystem, and also optionally stores a proxy in a MyProxy server.
+.PP
+When getting a certificate, the only required option is
+.I \-\-institution
+(or
+.IR \-i ).
+The option may come from a server rather than the command line when
+.I \-\-server
+(or
+.IR \-s )
+is used.
+.PP
+If an existing certificate has a minimum number of hours of validity
+remaining,
+.B
+cigetcert
+will reuse the certificate rather than getting a new one.  Details are
+under the
+.I \-\-minhours
+option below.
+
+.SH OPTIONS
+.PP
+.TP
+.B \-\-version
+Show the program's version number and exit.
+.TP
+.BR \-h , \ \-\-help
+Show a help message and exit.
+.TP
+.BR \-v , \ \-\-verbose
+Write detailed progress reports to stdout instead of the default
+concise reports.
+.TP
+.BR \-d , \ \-\-debug
+Write debug output to stdout.  Implies
+.IR \-v .
+Be aware that this writes a lot of output.
+.TP
+.BR \-q , \ \-\-quiet
+Do not print anything, not the concise progress reports and not even
+error messages.
+.TP
+.BR \-s\ HostOrURL , \ \-\-optserver=HostOrURL
+The server host name or URL with default cigetcert options.  If it is
+just a host name, the URL read is
+.RS
+.RS
+https://hostname/cigetcertopts.txt
+.RE
+otherwise the whole URL is read.
+See also CIGETCERTOPTS in the ENVIRONMENT section below.
+.RE
+.TP
+.BR \-i\ Name , \ \-\-institution\ Name
+The name of the institution that will provide the authentication from
+its Identity Provider (IdP).  This is required.
+.TP
+.B \-\-listinstitutions
+Show the current list of available instituions and exit.
+.TP
+.B \-\-idplisturl=URL
+The URL that contains a file mapping IdP URLs to institution names,
+one per line.  If the institution name ends with "(Kerberos)" then
+that parenthetical ending is removed and that IdP is used when
+authenticating with kerberos.  The URL may begin with https:// or
+file://.  The default URL is
+.RS
+.RS
+https://cilogon.org/include/ecpidps.txt
+.RE
+.RE
+.TP
+.B \-\-spurl=URL
+The SAML 2.0 ECP Service Provider (SP) URL.  The default is
+.RS
+.RS
+https://ecp.cilogon.org/secure/getcert
+.RE
+.RE
+.TP
+.B \-\-cafile=file
+The path to a file containing a bundle of Certifying Authority (CA)
+certificates.
+These will be used to verify the validity of https connections.
+The default is
+.RS
+.RS
+/etc/pki/tls/cert.pem
+.RE
+or, if that doesn't exist, the default is
+.RS
+/etc/ssl/certs/ca-certificates.crt
+.RE
+.RE
+.TP
+.B \-\-capath=path
+The path to a directory containing Certifying Authority (CA) certificates.
+These will be used in addition to the 
+.I \-\-cafile
+certificates to verify the validity of https connections.
+The default is $X509_CERT_DIR if it is set, or otherwise the default is
+.RS
+.RS
+/etc/grid-security/certificates
+.RE
+.RE
+.TP
+.BR \-k , \ \-\-kerberos
+Prefer kerberos authentication with the IdP if a kerberos ticket
+is available.  When not in combination with the
+.I \-\-noprompt
+option, if kerberos authentication fails then password authentication
+will be attempted.  This option is the default if the IdP of the 
+chosen institution has a URL marked with "(Kerberos)" in the
+idplisturl (unless the \-\-nokerberos option is used).
+.TP
+.BR \ \-\-nokerberos
+Do not attempt to use kerberos authentication.  If multiple 
+.I \-\-kerberos
+and
+.I \-\-nokerberos
+options are given, the last one specified applies.
+.TP
+.BR \-n , \ \-\-noprompt
+Do not prompt for a password.  Implies
+.IR \-\-kerberos .
+.TP
+.BR \-p\ str , \ \-\-promptstr=str
+The string used when prompting for a password.  The default is
+.RS
+.RS
+Password for %username@%realm
+.RE
+where %username is the value of the
+.I \-\-username
+option and %realm is the realm value that the IdP supplies.
+.RE
+.TP
+.BR \-u\ str , \ \-\-username=str
+The string used as the username when authenticating with the IdP.
+The default is the current user name.
+.TP
+.BR \-o\ path , \ \-\-out=path
+The path of the file used to store the certificate/key chain or proxy
+certificate/key chain on the local machine.  The default is
+$X509_USER_PROXY if it is set, or otherwise the default is
+.RS
+.RS
+/tmp/x509up_%uid
+.RE
+where %uid is the current effective user id.
+.RE
+.TP
+.B \-\-reuseonly
+Only check to see if an existing certificate or proxy in the path
+of the
+.I \-\-out
+option can be reused (according to the algorithm shown in
+.I \-\-minhours
+below); do not get a new certificate if the old one cannot be reused.
+This defaults to true if a file at the
+.I \-\-out
+path already exists and is read-only, otherwise the default is false.
+.TP
+.B \-\-noreuseonly
+Negate the 
+.I \-\-reuseonly
+option; get a certificate if an old one cannot be reused.  If multiple 
+.I \-\-reuseonly
+and
+.I \-\-noreuseonly
+options are given, the last one specified applies.
+.TP
+.B \-\-minhours=num
+The minimum number of hours remaining before the existing local
+certificate chain expires in order to reuse it instead of making a
+new one.
+This feature is intended to reduce load on the servers.
+.I num
+may be a floating point number to specify fractions of hours for this
+option (similarly for all other *hours options).
+The default is 1.
+Also, if myproxy options (below) are set, in order to reuse a proxy it
+has to already exist in the myproxy server and have a minimum number
+of hours remaining that is at least the greater of %minhours or
+.RS
+.RS
+(%hours - %proxyhours - %minhours)
+.RE
+where the '%' names are the values of the corresponding options.
+Finally, if the
+.I \-\-myproxyretrievers
+option is set, that also must match with the value stored with the
+proxy on MyProxy.
+.RE
+.TP
+.B \-\-hours=num
+The number of hours on the certificate created by the SP.
+The maximum is ordinarly 277.7777 (a million seconds), unless
+.I \-\-myproxyserver
+is set; then the maximum is 10000 hours (a little over 13 months).
+If a fractional number of hours is requested, the actual certificate
+will be rounded up to the next whole hour but there will be a proxy
+generated with the requested time.
+The default is 168 (a week).
+.TP
+.B \-\-proxyhours=num
+The number of hours on a proxy certificate stored on the local filesystem.
+The maximum is 277.7777 (a million seconds).
+The default is the value of
+.IR \-\-hours ,
+unless it is greater than 277.7777; then the default is 168 (a week).
+Implies
+.I \-\-proxy
+if not equal to the value of
+.IR \-\-hours .
+.TP
+.B \-\-proxy
+Store a proxy certificate/key chain on the local filesystem instead of
+the original certificate/key chain created by the SP.  Throw away the
+key of the original certificate.  This option is implied when the
+value of
+.I \-\-hours
+does not match the value of
+.IR \-\-proxyhours .
+It is also implied when 
+.B \-\-hours
+is not a whole number, because the original certificate cannot be
+fractions of an hour.
+.TP
+.B \-\-myproxyserver=Host
+Host name of a MyProxy server for storing a proxy certificate/key chain.
+The duration of that proxy will be the same as the original certificate,
+which is the value of
+.IR \-\-hours .
+.TP
+.B \-\-myproxyusername=str
+The username of the proxy stored in the MyProxy server.
+The default is %certsubject which gets replaced with the base certificate
+subject DN (after stripping off up to 5 proxy levels).
+The string may contain %username which is replaced with the value of
+.IR \-\-username .
+.TP
+.B \-\-myproxyretrievers=expr
+A regular expression of certificate subject DNs that will be
+permitted to fetch a proxy from the MyProxy server for the
+username matching the value of 
+.IR \-\-myproxyusername .
+.TP
+.B \-\-myproxyhours=num
+The maximum number of hours of a proxy that may be fetched from 
+MyProxy.
+The maximum is 277.7777.
+The default is the value of 
+.IR \-\-proxyhours.
+
+.SH "ENVIRONMENT"
+The following optional environment variables affect the operation of
+.BR cigetcert .
+.TP
+.B "CIGETCERTOPTS"
+Default options.  These options override any conflicting options from
+the optserver, but are overridden by any conflicting options from the
+command line.
+.TP
+.B "X509_USER_PROXY"
+Default location for the user's proxy certificate on the local disk.
+For more details see the
+.I \-\-out
+option.
+.TP
+.B "X509_CERT_DIR"
+Default directory for CA certificates.  See also the
+.I \-\-capath
+option.
+.TP
+.B "KRB5CCNAME"
+Location of a kerberos 5 credentials (ticket) cache.
+
+
+.SH EXAMPLES
+.PP
+To get a 1 week certificate in /tmp, always prompting for a password:
+.PP
+.RS
+.nf
+cigetcert --nokerberos -i 'Fermi National Accelerator Laboratory'
+.fi
+.RE
+.PP
+To get a 4 week proxy in a myproxy server and 1 week in /tmp, using
+kerberos if available (because it is default for the institution) and
+if not prompt for a password, allowing retrieving by other servers
+and a maximum time for retrieved proxies of 1 day:
+.PP
+.RS
+.nf
+cigetcert --hours=672 \\
+    -i 'Fermi National Accelerator Laboratory' \\
+    --myproxyserver=myproxy.fnal.gov \\
+    --myproxyretrievers='.*/CN=fifebatch(|1|2).fnal.gov' \\
+    --myproxyhours=24
+.fi
+.RE
+.PP
+To read options including the institution from a server and use
+only kerberos authentication and not password authentication:
+.PP
+.RS
+.nf
+cigetcert -ns fifebatch.fnal.gov
+.fi
+.RE
+
+.PP
+To always have a default institution:
+.PP
+.RS
+.nf
+export CIGETCERTOPTS="-i 'Fermi National Accelerator Laboratory'"
+.fi
+.RE
+
+.SH "EXIT VALUES"
+.TP
+.B 0
+Success
+.TP
+.B 1
+All fatal errors other than usage errors
+.TP
+.B 2
+Usage error
+
+.SH AUTHOR
+Dave Dykstra
+
+.SH COPYRIGHT
+Copyright \(co 2016 Fermi National Accelerator Laboratory
+
+.SH "SEE ALSO"
+http://www.cilogon.org/ecp
