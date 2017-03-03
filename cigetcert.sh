@@ -1,3 +1,3 @@
 #!/bin/bash
-unset PYTHONPATH LD_LIBRARY_PATH
-exec /usr/bin/python /usr/libexec/cigetcert/cigetcert.pyc "$@"
+unset LD_LIBRARY_PATH
+exec /usr/bin/python -E /usr/libexec/cigetcert/cigetcert.pyc "$@"
