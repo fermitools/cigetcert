@@ -1,7 +1,7 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
 Version: 1.16
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: BSD
 Group: Applications/System
 URL: http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
@@ -53,6 +53,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Mar 03 2017 Dave Dykstra <dwd@fnal.gov> 1.16-2
+- In /usr/bin/cigetcert, invoke python with the '-E' option to avoid
+  variables like PYTHONHOME.
+
 * Tue Oct 18 2016 Dave Dykstra <dwd@fnal.gov> 1.16-1
 - Fix typo in the variable name added in the last version.  This was
   not noticed because it was caught in an exception and caused it to
