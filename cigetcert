@@ -17,7 +17,7 @@
 #  python-lxml
 
 # Except where noted, this source file is Copyright (c) 2015-2016, FERMI
-#   NATIONAL ACCELERATOR LABORATORY.  All rights reserved. 
+#   NATIONAL ACCELERATOR LABORATORY.  All rights reserved.
 #
 # For details of the Fermitools (BSD) license see COPYING or
 #  http://fermitools.fnal.gov/about/terms.html
@@ -58,10 +58,10 @@ import shlex
 from optparse import OptionParser
 
 defaults = {
-    "spurl" : "https://ecp.cilogon.org/secure/getcert",
-    "idplisturl" : "https://cilogon.org/include/ecpidps.txt",
-    "cafile" : "/etc/pki/tls/cert.pem",
-    "capath" : "/etc/grid-security/certificates"
+    "spurl": "https://ecp.cilogon.org/secure/getcert",
+    "idplisturl": "https://cilogon.org/include/ecpidps.txt",
+    "cafile": "/etc/pki/tls/cert.pem",
+    "capath": "/etc/grid-security/certificates"
 }
 
 # this is the default CA file on Debian
@@ -71,10 +71,12 @@ altcafile = '/etc/ssl/certs/ca-certificates.crt'
 options = None
 showprogress = False
 
+
 def usage(parser, msg):
     print(prog + ": " + msg + '\n', file=sys.stderr)
     parser.print_help(sys.stderr)
     sys.exit(2)
+
 
 def fatal(msg, code=1):
     if (options is None) or not options.quiet:
@@ -83,9 +85,11 @@ def fatal(msg, code=1):
         print(prog + ": " + msg, file=sys.stderr)
     sys.exit(code)
 
+
 # print exception type name and contents after fatal error message
 def efatal(msg, e, code=1):
     fatal(msg + ': ' + type(e).__name__ + ': ' + str(e), code)
+
 
 def reusefail(msg, outfile, code=1):
     global showprogress
@@ -98,6 +102,7 @@ def reusefail(msg, outfile, code=1):
         fatal(msg + ', and --reuseonly is set')
     if options.verbose:
         print(msg)
+
 
 # this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
 def www_auth(handle):
@@ -112,6 +117,7 @@ def www_auth(handle):
         auth_fields[kind.lower()] = details.strip()
     return auth_fields
 
+
 # function from http://stackoverflow.com/questions/4407539/python-how-to-make-an-option-to-be-required-in-optparse
 def checkRequiredOptions(parser):
     missing_options = []
@@ -123,21 +129,26 @@ def checkRequiredOptions(parser):
 
 # M2Crypto's X509_Name as_text() returns comma-separated list, so convert
 #  that to conventional format with slashes.
+
+
 def x509name_to_str(name):
-    return '/' + name.as_text().replace(', ','/')
+    return '/' + name.as_text().replace(', ', '/')
 
 
 # Make a wrapper so a SSL Connection object can be opened as a file
-# this is mostly from 
+# this is mostly from
 # http://git.ganeti.org/?p=ganeti.git;a=commitdiff;h=beba56ae8;hp=70c815118f7f8bf151044cb09868d1e3d7a63ac8
 class _SslSocketWrapper(object):
     def __init__(self, conn):
         self._conn = conn
+
     def __getattr__(self, name):
         # forward everything to underlying connection
         return getattr(self._conn, name)
+
     def makefile(self, mode, bufsize):
         return socket._fileobject(self._conn, mode, bufsize)
+
     def close(self):
         # m2crypto always shuts down the SSL connection in the connection
         #  close() function
@@ -146,13 +157,14 @@ class _SslSocketWrapper(object):
             print(prog + " program warning: close did not send shutdown", file=sys.stderr)
         return ret
 
+
 # validate a certificate on an HTTPS connection with M2Crypto
 class CertValidatingHTTPSConnection(httplib.HTTPConnection):
     default_port = httplib.HTTPS_PORT
 
     def __init__(self, host, port=None, key_file=None, cert_file=None,
-            cert_chain_file=None, cafile=None, capath=None, strict=None,
-            **kwargs):
+                 cert_chain_file=None, cafile=None, capath=None, strict=None,
+                 **kwargs):
         httplib.HTTPConnection.__init__(self, host, port, strict, **kwargs)
         self.host = host
         self.key_file = key_file
@@ -162,14 +174,15 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         self.capath = capath
 
     def connect(self):
-        # 'sslv23' actually means to accept all, then we turn off 
+        # 'sslv23' actually means to accept all, then we turn off
         #   insecure sslv2 & sslv3
-        context=SSL.Context('sslv23')
+        context = SSL.Context('sslv23')
         # many websites say to disable SSL compression for CRIME attack
         #  but unfortunately m2crypto doesn't have a constant for it
         SSL_OP_NO_COMPRESSION = 0x00020000
-        context.set_options(m2.SSL_OP_NO_SSLv2|m2.SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION)
-        # the example used for M2Crypto connections was mostly 
+        context.set_options(m2.SSL_OP_NO_SSLv2 |
+                            m2.SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION)
+        # the example used for M2Crypto connections was mostly
         #   https://www.heikkitoivonen.net/blog/2008/10/14/ssl-in-python-26/
         if (self.cert_file is not None) or (self.key_file is not None):
             context.load_cert(self.cert_file, self.key_file)
@@ -179,10 +192,11 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         # extension package m2ext that does, but ignoring CRLs for the
         # well-managed servers that cigetcert connects to is deemed to
         # be an acceptable risk.
-        context.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
+        context.set_verify(
+            SSL.verify_peer | SSL.verify_fail_if_no_peer_cert, depth=9)
         if context.load_verify_locations(self.cafile, self.capath) != 1:
-            raise RuntimeError('Could not load verify locations ' + \
-                        str(self.cafile) + ' ' + str(self.capath))
+            raise RuntimeError('Could not load verify locations ' +
+                               str(self.cafile) + ' ' + str(self.capath))
         # The following cipher list is from "Disable weak ciphers" on
         # https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet
         # combined with the openssl man page at
@@ -192,15 +206,16 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         if context.set_cipher_list('DEFAULT:!eNULL:!aNULL:!ADH:!EXP:!LOW:!MD5:!IDEA:!RC4:@STRENGTH') != 1:
             print("No valid ciphers")
         sslconn = SSL.Connection(context)
-	if "settimeout" in dir(SSL.Connection):
-	    # this improves the error message when it is available
-	    # from "Operation now in progress" to "timed out"
-	    sslconn.settimeout(15)
-        timeout=SSL.timeout(15)
+        if "settimeout" in dir(SSL.Connection):
+            # this improves the error message when it is available
+            # from "Operation now in progress" to "timed out"
+            sslconn.settimeout(15)
+        timeout = SSL.timeout(15)
         sslconn.set_socket_read_timeout(timeout)
         sslconn.set_socket_write_timeout(timeout)
         sslconn.connect((self.host, self.port))
         self.sock = _SslSocketWrapper(sslconn)
+
 
 class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
     def __init__(self, **kwargs):
@@ -277,13 +292,13 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
                                    str(serial), -1, -1, 0)
     proxy.set_subject(proxy_subject)
     proxy.add_ext(X509.new_extension("keyUsage",
-        "Digital Signature, Key Encipherment, Data Encipherment", 1))
+                                     "Digital Signature, Key Encipherment, Data Encipherment", 1))
     if limited:
         proxy.add_ext(X509.new_extension("proxyCertInfo",
-            "critical, language:1.3.6.1.4.1.3536.1.1.1.9", 1))
+                                         "critical, language:1.3.6.1.4.1.3536.1.1.1.9", 1))
     else:
         proxy.add_ext(X509.new_extension("proxyCertInfo",
-            "critical, language:Inherit all", 1))
+                                         "critical, language:Inherit all", 1))
 
     sign_pkey = EVP.PKey()
     sign_pkey.assign_rsa(certprivkey, 0)
@@ -313,31 +328,35 @@ def replace_certsubject(strng, cert):
         certsubject = newsubj
     return strng.replace('%certsubject', certsubject)
 
+
 # This function was borrowed from http://stackoverflow.com/a/93029
 # It is used below to sanitize input that could come from the user
-control_chars = ''.join(map(unichr, range(0,32) + range(127,160)))
+control_chars = ''.join(map(unichr, range(0, 32) + range(127, 160)))
 control_char_re = re.compile('[%s]' % re.escape(control_chars))
+
+
 def remove_control_chars(s):
     return control_char_re.sub('', s)
+
 
 # start connection to MyProxy and send it a command
 # returns ssl "socket"
 def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
-            retrievers=None):
+                          retrievers=None):
     # The protocol with myproxy is not https but create an HTTPS
     #  connection just to validate the certificate, then use the ssl
     #  "socket" directly.
     conn = CertValidatingHTTPSConnection(options.myproxyserver, port=7512,
-        cafile=options.cafile, capath=options.capath, 
-        cert_chain_file=chainfile)
+                                         cafile=options.cafile, capath=options.capath,
+                                         cert_chain_file=chainfile)
     try:
         conn.connect()
     except Exception as e:
         raise Exception("error connecting to %s: %s: %s" %
-                (options.myproxyserver, type(e).__name__, str(e)))
+                        (options.myproxyserver, type(e).__name__, str(e)))
 
     sslsock = conn.sock
-    sslsock.write('0') # required by MyProxy protocol
+    sslsock.write('0')  # required by MyProxy protocol
 
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=' + str(command) + '\n'
@@ -358,7 +377,8 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
 
     return sslsock
 
-# Read and parse a myproxy response.  
+
+# Read and parse a myproxy response.
 # Returns: integer response, error text, integer end time
 def parse_myproxy_response(sslsock):
 
@@ -385,8 +405,9 @@ def parse_myproxy_response(sslsock):
 
     if options.debug:
         print("###### End MyProxy response")
-    
+
     return response, params
+
 
 # This is a function because it has to be done after both times
 #  the options are processed.
@@ -404,76 +425,77 @@ def parseargs(parser, argv):
             capath = defaults['capath']
         options.capath = str(capath)
 
+
 ###  cigetcert main ####
 def main():
     global options
     usagestr = "usage: %prog [-h] [otheroptions]"
     parser = OptionParser(usage=usagestr, version=version, prog=prog)
 
-    parser.add_option("-v", "--verbose", 
+    parser.add_option("-v", "--verbose",
                       action="store_true", default=False,
                       help="write detailed progress to stdout")
-    parser.add_option("-d", "--debug", 
+    parser.add_option("-d", "--debug",
                       action="store_true", default=False,
                       help="write debug output to stdout (implies -v)")
-    parser.add_option("-q", "--quiet", 
+    parser.add_option("-q", "--quiet",
                       action="store_true", default=False,
                       help="do not print progress or error messages")
-    parser.add_option("-s", "--optserver", 
+    parser.add_option("-s", "--optserver",
                       metavar="HostOrURL",
                       help="server or URL with default %s options" % prog)
-    parser.add_option("-i", "--institution", 
+    parser.add_option("-i", "--institution",
                       metavar="Name",
                       help="Institution name (required)")
-    parser.add_option("", "--listinstitutions", 
+    parser.add_option("", "--listinstitutions",
                       action="store_true", default=False,
                       help="List available institution names and exit")
-    parser.add_option("", "--idplisturl", 
+    parser.add_option("", "--idplisturl",
                       metavar="URL", default=defaults['idplisturl'],
                       help="Identity Provider list URL")
-    parser.add_option("", "--spurl", 
+    parser.add_option("", "--spurl",
                       metavar="URL", default=defaults['spurl'],
                       help="Service Provider URL")
     if not os.path.isfile(defaults['cafile']) and os.path.isfile(altcafile):
         defaults['cafile'] = altcafile
-    parser.add_option("", "--cafile", 
+    parser.add_option("", "--cafile",
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
-    parser.add_option("", "--capath", 
-                      metavar="path", 
+    parser.add_option("", "--capath",
+                      metavar="path",
                       help="Certifying Authority certificates directory " +
-                                '[default: $X509_CERT_DIR or ' +
-                                    defaults['capath'] + ']')
-    parser.add_option("-k", "--kerberos", 
+                      '[default: $X509_CERT_DIR or ' +
+                      defaults['capath'] + ']')
+    parser.add_option("-k", "--kerberos",
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
-    parser.add_option("", "--nokerberos", 
+    parser.add_option("", "--nokerberos",
                       action="store_const", const=-1, dest="kerberos",
                       help="do not attempt to use kerberos authentication")
-    parser.add_option("-n", "--noprompt", 
+    parser.add_option("-n", "--noprompt",
                       action="store_true", default=False,
                       help="do not prompt for password (implies --kerberos)")
-    parser.add_option("-p", "--promptstr", 
+    parser.add_option("-p", "--promptstr",
                       metavar="str", default="Password for %username@%realm",
                       help="prompt string")
-    parser.add_option("-u", "--username", 
+    parser.add_option("-u", "--username",
                       metavar="str", default="%currentuser",
                       help="username for authentication")
-    parser.add_option("-o", "--out", 
-                      metavar="path", 
-                      help="file path to save certificate and key chain " + \
+    parser.add_option("-o", "--out",
+                      metavar="path",
+                      help="file path to save certificate and key chain " +
                             "[default: $X509_USER_PROXY or /tmp/x509up_u%uid]")
-    parser.add_option("", "--reuseonly", 
+    parser.add_option("", "--reuseonly",
                       action="store_const", const=1, default=0,
-                      help="only verify existing proxy can be reused " + \
-                            "[default: true if %out is read-only]")
-    parser.add_option("", "--noreuseonly", 
+                      help="only verify existing proxy can be reused " +
+                      "[default: true if %out is read-only]")
+    parser.add_option("", "--noreuseonly",
                       action="store_const", const=-1, dest="reuseonly",
                       help="turn off reuseonly; get cert if needed")
-    parser.add_option("", "--minhours", 
+    parser.add_option("", "--minhours",
                       type="float", metavar="num", default=1.0,
-                      help="minimum hours remaining in existing cert chain " + \
-                            "to keep using it instead of making a new one")
+                      help="minimum hours remaining in existing cert chain " +
+                      "to keep using it instead of making a new one")
     maxproxyhours = 1000000.0/3600  # a million seconds
     # note that the actual max is 277.77777... hours, but that's too ugly
     #   for the usage message, so show only 277
@@ -482,35 +504,34 @@ def main():
     maxcertstr = str(maxcerthours)
     defproxyhours = 24 * 7
     defproxystr = str(defproxyhours)
-    parser.add_option("", "--hours", 
+    parser.add_option("", "--hours",
                       type="float", metavar="num", default=defproxyhours,
-                      help="lifetime hours of the certificate [max: " + \
-                        maxproxystr + " unless --myproxyserver is set, then " + \
-                        maxcertstr + "]")
-    parser.add_option("", "--proxyhours", 
+                      help="lifetime hours of the certificate [max: " +
+                      maxproxystr + " unless --myproxyserver is set, then " +
+                      maxcertstr + "]")
+    parser.add_option("", "--proxyhours",
                       type="float", metavar="num",
-                      help="lifetime hours of a proxy certificate " + \
-                        "[max: "  + maxproxystr + "] [default: %hours, or " + \
-                        defproxystr + " if %hours > " + maxproxystr + "]")
-    parser.add_option("", "--proxy", 
+                      help="lifetime hours of a proxy certificate " +
+                      "[max: " + maxproxystr + "] [default: %hours, or " +
+                      defproxystr + " if %hours > " + maxproxystr + "]")
+    parser.add_option("", "--proxy",
                       action="store_true", default=False,
-                      help="store proxy certificate instead of certificate in %out" + \
-                        " [implied when %hours does not match %proxyhours]")
-    parser.add_option("", "--myproxyserver", 
+                      help="store proxy certificate instead of certificate in %out" +
+                      " [implied when %hours does not match %proxyhours]")
+    parser.add_option("", "--myproxyserver",
                       metavar="Host",
                       help="host name of MyProxy server for storing credentials")
-    parser.add_option("", "--myproxyusername", 
+    parser.add_option("", "--myproxyusername",
                       metavar="str", default="%certsubject",
                       help="username on MyProxy server for naming credentials")
-    parser.add_option("", "--myproxyretrievers", 
+    parser.add_option("", "--myproxyretrievers",
                       metavar="expr",
-                      help="regular expression of certificate Distinguished" + \
-                            " Names permitted to fetch %myproxyusername proxy from MyProxy")
-    parser.add_option("", "--myproxyhours", 
+                      help="regular expression of certificate Distinguished" +
+                      " Names permitted to fetch %myproxyusername proxy from MyProxy")
+    parser.add_option("", "--myproxyhours",
                       type="float", metavar="num",
-                      help="max lifetime hours of a proxy fetched from MyProxy" + \
-                        " [max: " + maxproxystr + "] [default: %proxyhours]")
-
+                      help="max lifetime hours of a proxy fetched from MyProxy" +
+                      " [max: " + maxproxystr + "] [default: %proxyhours]")
 
     # add default value (if any) to the help messages that are strings
     for option in parser.option_list:
@@ -526,12 +547,14 @@ def main():
     # Set up https handler/opener with cookies
     cookiejar = cookielib.CookieJar()
     cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
-    httpshandler = VerifiedHTTPSHandler(cafile=options.cafile, capath=options.capath)
+    httpshandler = VerifiedHTTPSHandler(
+        cafile=options.cafile, capath=options.capath)
     if options.debug:
         httpshandler.set_http_debuglevel(1)
     # Need to avoid following the '302 Found' response in our response
     #   to the Assertion Consumer, below.  It doesn't hurt on the other
     #   connections os use the same handler for everything.
+
     class NoRedirectHandler(urllib2.HTTPRedirectHandler):
         def http_error_302(self, request, response, code, msg, hdrs):
             if options.debug:
@@ -539,11 +562,13 @@ def main():
             return response
     noredirecthandler = NoRedirectHandler()
     # Prevent http connections
+
     class NoHttpHandler(urllib2.HTTPHandler):
         def http_open(self, req):
             raise Exception('only https:// and file:// supported')
     nohttphandler = NoHttpHandler()
-    opener = urllib2.build_opener(cookiehandler, noredirecthandler, nohttphandler, httpshandler)
+    opener = urllib2.build_opener(
+        cookiehandler, noredirecthandler, nohttphandler, httpshandler)
     if options.optserver is not None:
         # read additional options from optserver
         optserver = options.optserver
@@ -579,7 +604,7 @@ def main():
         prevname = ''
         for line in idplist.splitlines():
             idx = line.index(' ')
-            name = line[idx+1:].replace(' (Kerberos)','')
+            name = line[idx+1:].replace(' (Kerberos)', '')
             if name != prevname:
                 print(name)
             prevname = name
@@ -653,9 +678,10 @@ def main():
             print("myproxyhours: " + str(options.myproxyhours))
         print()
 
-    ### Check to see if an adequate proxy or cert already exists
-    username = options.username.replace("%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
-    myproxyusername = options.myproxyusername.replace("%username",username)
+    # Check to see if an adequate proxy or cert already exists
+    username = options.username.replace(
+        "%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
+    myproxyusername = options.myproxyusername.replace("%username", username)
     outfile = options.out.replace("%uid", str(os.geteuid()))
     if os.path.exists(outfile):
         if options.reuseonly == 0:
@@ -667,47 +693,56 @@ def main():
             if options.reuseonly > 0:
                 showprogress = False
                 if options.reuseonly == 2:
-                    efatal('Could not load ' + outfile + ' and it is read-only', e)
-                efatal('Could not load ' + outfile + ' and --reuseonly is set', e)
+                    efatal('Could not load ' + outfile +
+                           ' and it is read-only', e)
+                efatal('Could not load ' + outfile +
+                       ' and --reuseonly is set', e)
             if options.debug:
-                print('Could not load ' + outfile + ': ' + type(e).__name__ + ': ' + str(e), e)
+                print('Could not load ' + outfile + ': ' +
+                      type(e).__name__ + ': ' + str(e), e)
         else:
             if options.verbose:
-                print("Checking if %s has at least %s hours left" % \
-                        (outfile, options.minhours))
+                print("Checking if %s has at least %s hours left" %
+                      (outfile, options.minhours))
             elif showprogress:
-                sys.stdout.write('Checking if ' + outfile + ' can be reused ...')
+                sys.stdout.write('Checking if ' + outfile +
+                                 ' can be reused ...')
                 sys.stdout.flush()
             if str(existing.get_not_after()) == 'Bad time value':
                 # this happens on el5 when the old outfile is empty
                 time_left = 0
             else:
-                time_left = asn1time_epoch_secs(existing.get_not_after()) - time.time()
+                time_left = asn1time_epoch_secs(
+                    existing.get_not_after()) - time.time()
                 if time_left < 0:
                     time_left = 0
             if time_left <= (options.minhours * 60 * 60):
-                reusefail("%.2f hours remaining, not enough" % (time_left / 60.0 / 60.0), outfile)
+                reusefail("%.2f hours remaining, not enough" %
+                          (time_left / 60.0 / 60.0), outfile)
             else:
                 if options.verbose:
-                    print("%.2f hours remaining, enough to reuse" % (time_left / 60.0 / 60.0))
+                    print("%.2f hours remaining, enough to reuse" %
+                          (time_left / 60.0 / 60.0))
                 canreuse = False
                 if options.myproxyserver is None:
                     canreuse = True
                 else:
                     if options.verbose:
-                        print("Checking if %s has at least %s hours left" % \
-                                (options.myproxyserver, myproxyminhours))
+                        print("Checking if %s has at least %s hours left" %
+                              (options.myproxyserver, myproxyminhours))
                     elif showprogress:
                         sys.stdout.write('.')
                         sys.stdout.flush()
 
-                    myproxyinfousername = replace_certsubject(myproxyusername, existing)
+                    myproxyinfousername = replace_certsubject(
+                        myproxyusername, existing)
 
                     try:
-                        sslsock = start_myproxy_command(outfile, '2', 
-                                        myproxyinfousername, 'PASSPHRASE', 0)
+                        sslsock = start_myproxy_command(outfile, '2',
+                                                        myproxyinfousername, 'PASSPHRASE', 0)
                     except Exception as e:
-                        reusefail("reading MyProxy info failed: " + str(e), outfile)
+                        reusefail("reading MyProxy info failed: " +
+                                  str(e), outfile)
                     else:
                         response, params = parse_myproxy_response(sslsock)
                         if response:
@@ -715,9 +750,11 @@ def main():
                                 print("##### Begin MyProxy error text")
                                 print(params['ERROR'])
                                 print("##### End MyProxy error text")
-                            reusefail("no info retrieved from MyProxy", outfile)
+                            reusefail(
+                                "no info retrieved from MyProxy", outfile)
                         elif 'CRED_END_TIME' not in params:
-                            reusefail('no CRED_END_TIME in info retrieved from MyProxy', outfile)
+                            reusefail(
+                                'no CRED_END_TIME in info retrieved from MyProxy', outfile)
                         else:
                             endtime = int(params['CRED_END_TIME'])
                             time_left = endtime - int(time.time())
@@ -725,29 +762,34 @@ def main():
                                 time_left = 0
 
                             if time_left <= (myproxyminhours * 60 * 60):
-                                reusefail("%.2f hours remaining in MyProxy, not enough" % \
-                                        (time_left / 60.0 / 60.0), outfile)
+                                reusefail("%.2f hours remaining in MyProxy, not enough" %
+                                          (time_left / 60.0 / 60.0), outfile)
                             else:
                                 if options.verbose:
-                                    print("%.2f hours remaining, enough to reuse" % \
-                                        (time_left / 60.0 / 60.0))
+                                    print("%.2f hours remaining, enough to reuse" %
+                                          (time_left / 60.0 / 60.0))
                                 if options.myproxyretrievers is not None:
                                     if showprogress:
                                         sys.stdout.write('.')
                                         sys.stdout.flush()
                                     if ('CRED_RETRIEVER_TRUSTED' not in params) or \
-                                        (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
+                                            (params['CRED_RETRIEVER_TRUSTED'] != options.myproxyretrievers):
                                         if options.debug:
-                                            print("##### Begin MyProxy retrievers")
+                                            print(
+                                                "##### Begin MyProxy retrievers")
                                             if 'CRED_RETRIEVER_TRUSTED' not in params:
                                                 print('None')
                                             else:
-                                                print(params['CRED_RETRIEVER_TRUSTED'])
-                                            print("##### End MyProxy retrievers")
-                                        reusefail("myproxyretrievers does not match in MyProxy", outfile)
+                                                print(
+                                                    params['CRED_RETRIEVER_TRUSTED'])
+                                            print(
+                                                "##### End MyProxy retrievers")
+                                        reusefail(
+                                            "myproxyretrievers does not match in MyProxy", outfile)
                                     else:
                                         if options.debug:
-                                            print("myproxyretrievers also matches")
+                                            print(
+                                                "myproxyretrievers also matches")
                                         canreuse = True
                                 else:
                                     canreuse = True
@@ -766,7 +808,7 @@ def main():
     if (options.reuseonly > 0):
         fatal('Program error with reuseonly -- should not reach this point')
 
-    ### Look up the IdP URL
+    # Look up the IdP URL
     if options.verbose:
         print("Fetching list of IdPs from " + options.idplisturl)
     elif showprogress:
@@ -799,8 +841,8 @@ def main():
 
     if idpkrburl is None:
         fatal('No institution called "' + options.institution + '"\n' +
-                '  in ' + options.idplisturl + '\n' +
-                '  Use --listinstitutions to see available institutions')
+              '  in ' + options.idplisturl + '\n' +
+              '  Use --listinstitutions to see available institutions')
 
     if options.debug:
         print('##### IdP URL: ' + str(idpurl))
@@ -809,8 +851,8 @@ def main():
 
     ### Begin the real SAML communication, starting with the SP ###
     headers = {
-        'Accept' : 'text/html; application/vnd.paos+xml',
-        'PAOS'   : 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
+        'Accept': 'text/html; application/vnd.paos+xml',
+        'PAOS': 'ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"'
     }
     if not options.spurl.endswith('/'):
         options.spurl += '/'
@@ -819,12 +861,12 @@ def main():
     elif showprogress:
         sys.stdout.write('.')
         sys.stdout.flush()
-    sprequest = urllib2.Request(url=options.spurl,headers=headers)
+    sprequest = urllib2.Request(url=options.spurl, headers=headers)
     try:
         sphandle = opener.open(sprequest)
     except Exception as e:
         efatal("first request to SP %s failed" % options.spurl, e)
-    
+
     # etree can be attacked by unsanitized sources, but the sources are
     #  all trusted because the host certs are verified so no worries.
     spetree = etree.XML(sphandle.read())
@@ -836,14 +878,15 @@ def main():
 
     # these are used for multiple XML parses below
     namespaces = {
-        'ecp' : 'urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp',
-        'S'   : 'http://schemas.xmlsoap.org/soap/envelope/',
+        'ecp': 'urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp',
+        'S': 'http://schemas.xmlsoap.org/soap/envelope/',
         'paos': 'urn:liberty:paos:2003-08'
     }
 
     # pull out the RelayState
     try:
-        relayState = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
+        relayState = spetree.xpath(
+            "//ecp:RelayState", namespaces=namespaces)[0]
     except Exception as e:
         efatal("Unable to parse RelayState element from SP response", e)
 
@@ -854,7 +897,8 @@ def main():
 
     # pull out the responseConsumerURL
     try:
-        responseConsumerURL = spetree.xpath("/S:Envelope/S:Header/paos:Request/@responseConsumerURL", namespaces=namespaces)[0]
+        responseConsumerURL = spetree.xpath(
+            "/S:Envelope/S:Header/paos:Request/@responseConsumerURL", namespaces=namespaces)[0]
     except Exception as e:
         efatal("Unable to parse responseConsumerURL from SP response",  e)
 
@@ -868,7 +912,7 @@ def main():
     header = idprequestbody[0]
     idprequestbody.remove(header)
     # can't pretty print here or the IdP doesn't like it
-    idpbody=etree.tostring(idprequestbody)
+    idpbody = etree.tostring(idprequestbody)
 
     if options.debug:
         print("###### Begin IdP request body")
@@ -905,7 +949,8 @@ def main():
             print("###### End IdP response to unauthorized request")
 
         if notauthidphandle.code != 401:
-            fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (url, notauthidphandle.code))
+            fatal("Did not get expected response code 401 from IdP %s, instead got code %d" % (
+                url, notauthidphandle.code))
         return www_auth(notauthidphandle)
 
     wwwauthenticate = dounauthrequest(unauthidpurl)
@@ -945,7 +990,8 @@ def main():
                     sys.stdout.flush()
 
                 authidpurl = idpkrburl
-                idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
+                idprequest = urllib2.Request(
+                    idpkrburl, headers=headers, data=idpbody)
                 try:
                     idphandle = opener.open(idprequest)
                 except Exception as e:
@@ -960,7 +1006,7 @@ def main():
             fatal("IdP does not support password authentication")
 
         # ask for password
-        promptstr = options.promptstr.replace("%username",username)
+        promptstr = options.promptstr.replace("%username", username)
         if (promptstr.find('%realm') != -1):
             basic = wwwauthenticate['basic']
             if basic.find('realm=') == -1:
@@ -974,7 +1020,8 @@ def main():
             password = getpass.getpass(promptstr + ': ')
         except:
             fatal("failed to get password")
-        base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+        base64string = base64.encodestring(
+            '%s:%s' % (username, password)).replace('\n', '')
         headers = {
             'Content-Type': 'text/xml',
             'Authorization': 'Basic ' + base64string
@@ -994,7 +1041,8 @@ def main():
         # in case unauthorized the second try
         if idphandle.code == 401:
             fatal("authorization failed")
-        fatal("unexpected http response code from IdP %s: %d" % (authidpurl, idphandle.code))
+        fatal("unexpected http response code from IdP %s: %d" %
+              (authidpurl, idphandle.code))
 
     idpetree = etree.XML(idphandle.read())
 
@@ -1005,7 +1053,8 @@ def main():
 
     # pull out the AsssertionConsumerServiceURL
     try:
-        assertionConsumerServiceURL = idpetree.xpath("/S:Envelope/S:Header/ecp:Response/@AssertionConsumerServiceURL", namespaces=namespaces)[0]
+        assertionConsumerServiceURL = idpetree.xpath(
+            "/S:Envelope/S:Header/ecp:Response/@AssertionConsumerServiceURL", namespaces=namespaces)[0]
     except Exception as e:
         efatal("Unable to parse AssertionConsumerServiceURL from IdP response",  e)
 
@@ -1028,15 +1077,17 @@ def main():
                </S:Body>
             </S:Envelope>
             """
-        headers = { 'Content-Type' : 'application/vnd.paos+xml' }
-        request = urllib2.Request(responseConsumerURL, headers=headers, data=soapfault)
+        headers = {'Content-Type': 'application/vnd.paos+xml'}
+        request = urllib2.Request(
+            responseConsumerURL, headers=headers, data=soapfault)
         # POST the fault to the SP but ignore any failure
         try:
             handle = opener.open(request)
         except Exception as e:
             pass
 
-        fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (assertionConsumerServiceURL, responseConsumerURL))
+        fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (
+            assertionConsumerServiceURL, responseConsumerURL))
 
     if showprogress:
         print(' authorized')
@@ -1045,25 +1096,27 @@ def main():
     #  Assertion Consumer (which is on the SP)
     acrequestbody = idpetree
     acrequestbody[0][0] = relayState
-    acbody=etree.tostring(acrequestbody)
+    acbody = etree.tostring(acrequestbody)
 
     if options.debug:
         print("###### Begin SP Assertion Consumer body")
         print(etree.tostring(acrequestbody, pretty_print=True))
         print("###### End SP Assertion Consumer body")
 
-
     if options.verbose:
-        print("Sending response to Assertion Consumer " + assertionConsumerServiceURL)
+        print("Sending response to Assertion Consumer " +
+              assertionConsumerServiceURL)
     elif showprogress:
         sys.stdout.write('Fetching certificate ...')
         sys.stdout.flush()
-    headers = { 'Content-Type' : 'application/vnd.paos+xml' }
-    acrequest = urllib2.Request(assertionConsumerServiceURL, headers=headers, data=acbody)
+    headers = {'Content-Type': 'application/vnd.paos+xml'}
+    acrequest = urllib2.Request(
+        assertionConsumerServiceURL, headers=headers, data=acbody)
     try:
         achandle = opener.open(acrequest)
     except Exception as e:
-        efatal("Failure on response from assertion consumer %s" % assertionConsumerServiceURL, e)
+        efatal("Failure on response from assertion consumer %s" %
+               assertionConsumerServiceURL, e)
 
     # Ignore the response body. We only want the cookie which the opener
     #   has already stored in the cookiejar.
@@ -1083,9 +1136,9 @@ def main():
     # It also has to be a form value in order to pass the CILogon CSRF check.
     csrfstr = random_string(10)
     headers = {
-        'Content-Type' : 'application/x-www-form-urlencoded',
-        'Cookie' : 'CSRF=' + csrfstr + '; ' +
-            shibcookie.name + '=' + shibcookie.value
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': 'CSRF=' + csrfstr + '; ' +
+        shibcookie.name + '=' + shibcookie.value
     }
 
     # Choose a random password for encrypting pkcs12 cert/key over the link.
@@ -1096,10 +1149,10 @@ def main():
         random_string(2, string.digits) + random_string(2, '!@#$%^&*()')
 
     certformvars = [
-        ('submit' , 'pkcs12'),
-        ('CSRF' , csrfstr),
-        ('p12password' , p12password),
-        ('p12lifetime' , math.ceil(options.hours))
+        ('submit', 'pkcs12'),
+        ('CSRF', csrfstr),
+        ('p12password', p12password),
+        ('p12lifetime', math.ceil(options.hours))
     ]
     certformdata = urllib.urlencode(certformvars)
 
@@ -1108,12 +1161,12 @@ def main():
     elif showprogress:
         sys.stdout.write('.')
         sys.stdout.flush()
-    spcertrequest = urllib2.Request(url=options.spurl,data=certformdata, 
-                headers=headers)
+    spcertrequest = urllib2.Request(url=options.spurl, data=certformdata,
+                                    headers=headers)
     try:
         spcerthandle = opener.open(spcertrequest)
     except Exception as e:
-        efatal("cert request to SP %s failed" % options.spurl,e)
+        efatal("cert request to SP %s failed" % options.spurl, e)
 
     pkcs12cert = spcerthandle.read()
     if options.debug:
@@ -1129,7 +1182,7 @@ def main():
     try:
         p12 = crypto.load_pkcs12(pkcs12cert, p12password)
     except Exception as e:
-        efatal("could not decode certificate from SP %s" % options.spurl,e)
+        efatal("could not decode certificate from SP %s" % options.spurl, e)
 
     cert = p12.get_certificate()
     key = p12.get_privatekey()
@@ -1159,7 +1212,8 @@ def main():
             sys.stdout.write('Generating proxy ...')
             sys.stdout.flush()
         try:
-            (proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
+            (proxystr, proxykeystr) = generate_proxycert(
+                cert, key, options.proxyhours)
             proxy = X509.load_cert_string(proxystr)
         except Exception as e:
             efatal("failure generating proxy for storage", e)
@@ -1172,12 +1226,13 @@ def main():
     #  requires it to be gone.  Need to use os.O_EXCL to prevent somebody
     #  else from pre-creating the file in order to steal credentials.
     try:
-        os.remove(outfile);
+        os.remove(outfile)
     except:
         pass
     try:
-	fd,path=tempfile.mkstemp(prefix=os.path.dirname(outfile)+'/.cigetcert')
-	handle=os.fdopen(fd, 'w')
+        fd, path = tempfile.mkstemp(
+            prefix=os.path.dirname(outfile)+'/.cigetcert')
+        handle = os.fdopen(fd, 'w')
     except Exception as e:
         efatal("failure creating file", e)
     try:
@@ -1191,13 +1246,13 @@ def main():
             handle.write(keystr)
             firstcert = cert
     except Exception as e:
-        efatal("failure writing file",e)
+        efatal("failure writing file", e)
     handle.close()
     try:
         os.rename(path, outfile)
     except Exception as e:
         try:
-            os.remove(outfile);
+            os.remove(outfile)
         except:
             pass
         efatal("failure renaming " + path + " to " + outfile, e)
@@ -1210,7 +1265,7 @@ def main():
         validuntil = time.ctime(asn1time_epoch_secs(firstcert.get_not_after()))
         print('Your ' + proxyorcert + ' is valid until: ' + validuntil)
 
-    ### MyProxy handling section
+    # MyProxy handling section
     if options.myproxyserver is None:
         sys.exit(0)
 
@@ -1236,7 +1291,7 @@ def main():
 
     try:
         sslsock = start_myproxy_command(outfile, '5', myproxyusername,
-                    '', options.myproxyhours, options.myproxyretrievers)
+                                        '', options.myproxyhours, options.myproxyretrievers)
     except Exception as e:
         fatal('MyProxy store failed: ' + str(e))
 
@@ -1253,7 +1308,7 @@ def main():
         sys.stdout.write(myproxystr + myproxykeystr + certstr)
         print("###### End chain sending to MyProxy")
 
-    # these have to all be sent in one write or sometimes MyProxy 
+    # these have to all be sent in one write or sometimes MyProxy
     #  doesn't read all the pieces properly
     sslsock.send(myproxystr + myproxykeystr + certstr)
 
@@ -1264,6 +1319,7 @@ def main():
 
     if showprogress:
         print(' stored')
+
 
 if __name__ == '__main__':
     main()
