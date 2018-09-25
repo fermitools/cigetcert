@@ -332,7 +332,7 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
         cert_chain_file=chainfile)
     try:
         conn.connect()
-    except Exception, e:
+    except Exception as e:
         raise Exception("error connecting to %s: %s: %s" %
                 (options.myproxyserver, type(e).__name__, str(e)))
 
@@ -554,7 +554,7 @@ def main():
         optrequest = urllib2.Request(url=optserver)
         try:
             opthandle = opener.open(optrequest)
-        except Exception, e:
+        except Exception as e:
             efatal("fetch of options from %s failed" % optserver, e)
         opts = opthandle.read()
         if options.debug:
@@ -563,7 +563,7 @@ def main():
             print("##### End additional options")
         try:
             serverargs = shlex.split(opts, True)
-        except Exception, e:
+        except Exception as e:
             efatal("parsing options from %s failed" % optserver, e)
 
         parseargs(parser, serverargs + envargs + sys.argv[1:])
@@ -572,7 +572,7 @@ def main():
         idplistrequest = urllib2.Request(url=options.idplisturl)
         try:
             idplisthandle = opener.open(idplistrequest)
-        except Exception, e:
+        except Exception as e:
             efatal("fetch of idplist from %s failed" % options.idplisturl, e)
         idplist = idplisthandle.read()
 
@@ -663,7 +663,7 @@ def main():
                 options.reuseonly = 2
         try:
             existing = X509.load_cert(outfile)
-        except Exception, e:
+        except Exception as e:
             if options.reuseonly > 0:
                 showprogress = False
                 if options.reuseonly == 2:
@@ -706,7 +706,7 @@ def main():
                     try:
                         sslsock = start_myproxy_command(outfile, '2', 
                                         myproxyinfousername, 'PASSPHRASE', 0)
-                    except Exception, e:
+                    except Exception as e:
                         reusefail("reading MyProxy info failed: " + str(e), outfile)
                     else:
                         response, params = parse_myproxy_response(sslsock)
@@ -775,7 +775,7 @@ def main():
     idplistrequest = urllib2.Request(url=options.idplisturl)
     try:
         idplisthandle = opener.open(idplistrequest)
-    except Exception, e:
+    except Exception as e:
         efatal("fetch of idplist from %s failed" % options.idplisturl, e)
     idplist = idplisthandle.read()
 
@@ -822,7 +822,7 @@ def main():
     sprequest = urllib2.Request(url=options.spurl,headers=headers)
     try:
         sphandle = opener.open(sprequest)
-    except Exception, e:
+    except Exception as e:
         efatal("first request to SP %s failed" % options.spurl, e)
     
     # etree can be attacked by unsanitized sources, but the sources are
@@ -844,7 +844,7 @@ def main():
     # pull out the RelayState
     try:
         relayState = spetree.xpath("//ecp:RelayState", namespaces=namespaces)[0]
-    except Exception, e:
+    except Exception as e:
         efatal("Unable to parse RelayState element from SP response", e)
 
     if options.debug:
@@ -855,7 +855,7 @@ def main():
     # pull out the responseConsumerURL
     try:
         responseConsumerURL = spetree.xpath("/S:Envelope/S:Header/paos:Request/@responseConsumerURL", namespaces=namespaces)[0]
-    except Exception, e:
+    except Exception as e:
         efatal("Unable to parse responseConsumerURL from SP response",  e)
 
     if options.debug:
@@ -896,7 +896,7 @@ def main():
         idprequest = urllib2.Request(url=url)
         try:
             notauthidphandle = opener.open(idprequest)
-        except Exception, e:
+        except Exception as e:
             efatal("Failure on (deliberately) unauthorized request to IdP %s" % url, e)
 
         if options.debug:
@@ -921,7 +921,7 @@ def main():
             __, krb_context = kerberos.authGSSClientInit(service)
             try:
                 kerberos.authGSSClientStep(krb_context, "")
-            except Exception, e:
+            except Exception as e:
                 if options.noprompt or (idpurl is None):
                     efatal("Kerberos initialization failed", e)
                 if options.verbose:
@@ -948,7 +948,7 @@ def main():
                 idprequest = urllib2.Request(idpkrburl, headers=headers, data=idpbody)
                 try:
                     idphandle = opener.open(idprequest)
-                except Exception, e:
+                except Exception as e:
                     idphandle = None
                     efatal("Failure on response from IdP %s" % idpkrburl, e)
 
@@ -987,7 +987,7 @@ def main():
         idprequest = urllib2.Request(idpurl, headers=headers, data=idpbody)
         try:
             idphandle = opener.open(idprequest)
-        except Exception, e:
+        except Exception as e:
             efatal("Failure on response from IdP %s" % idpurl, e)
 
     if idphandle.code != 200:
@@ -1006,7 +1006,7 @@ def main():
     # pull out the AsssertionConsumerServiceURL
     try:
         assertionConsumerServiceURL = idpetree.xpath("/S:Envelope/S:Header/ecp:Response/@AssertionConsumerServiceURL", namespaces=namespaces)[0]
-    except Exception, e:
+    except Exception as e:
         efatal("Unable to parse AssertionConsumerServiceURL from IdP response",  e)
 
     if options.debug:
@@ -1033,7 +1033,7 @@ def main():
         # POST the fault to the SP but ignore any failure
         try:
             handle = opener.open(request)
-        except Exception, e:
+        except Exception as e:
             pass
 
         fatal("assertionConsumerServiceURL %s from IdP does not match responseConsumerURL %s from SP" % (assertionConsumerServiceURL, responseConsumerURL))
@@ -1062,7 +1062,7 @@ def main():
     acrequest = urllib2.Request(assertionConsumerServiceURL, headers=headers, data=acbody)
     try:
         achandle = opener.open(acrequest)
-    except Exception, e:
+    except Exception as e:
         efatal("Failure on response from assertion consumer %s" % assertionConsumerServiceURL, e)
 
     # Ignore the response body. We only want the cookie which the opener
@@ -1112,7 +1112,7 @@ def main():
                 headers=headers)
     try:
         spcerthandle = opener.open(spcertrequest)
-    except Exception, e:
+    except Exception as e:
         efatal("cert request to SP %s failed" % options.spurl,e)
 
     pkcs12cert = spcerthandle.read()
@@ -1128,7 +1128,7 @@ def main():
     # M2Crypto does not support pkcs12 so need to use pyOpenSSL
     try:
         p12 = crypto.load_pkcs12(pkcs12cert, p12password)
-    except Exception, e:
+    except Exception as e:
         efatal("could not decode certificate from SP %s" % options.spurl,e)
 
     cert = p12.get_certificate()
@@ -1161,7 +1161,7 @@ def main():
         try:
             (proxystr, proxykeystr) = generate_proxycert(cert, key, options.proxyhours)
             proxy = X509.load_cert_string(proxystr)
-        except Exception, e:
+        except Exception as e:
             efatal("failure generating proxy for storage", e)
         if showprogress:
             print(' generated')
@@ -1178,7 +1178,7 @@ def main():
     try:
 	fd,path=tempfile.mkstemp(prefix=os.path.dirname(outfile)+'/.cigetcert')
 	handle=os.fdopen(fd, 'w')
-    except Exception, e:
+    except Exception as e:
         efatal("failure creating file", e)
     try:
         if options.proxy:
@@ -1190,12 +1190,12 @@ def main():
             handle.write(certstr)
             handle.write(keystr)
             firstcert = cert
-    except Exception, e:
+    except Exception as e:
         efatal("failure writing file",e)
     handle.close()
     try:
         os.rename(path, outfile)
-    except Exception, e:
+    except Exception as e:
         try:
             os.remove(outfile);
         except:
@@ -1221,7 +1221,7 @@ def main():
         sys.stdout.flush()
     try:
         (myproxystr, myproxykeystr) = generate_proxycert(cert, key, options.hours)
-    except Exception, e:
+    except Exception as e:
         efatal("failure generating proxy for MyProxy", e)
     if showprogress:
         print(' generated')
@@ -1237,7 +1237,7 @@ def main():
     try:
         sslsock = start_myproxy_command(outfile, '5', myproxyusername,
                     '', options.myproxyhours, options.myproxyretrievers)
-    except Exception, e:
+    except Exception as e:
         fatal('MyProxy store failed: ' + str(e))
 
     response, params = parse_myproxy_response(sslsock)
