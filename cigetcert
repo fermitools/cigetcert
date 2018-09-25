@@ -113,7 +113,11 @@ def reusefail(msg, outfile, code=1):
 # this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
 def www_auth(handle):
     auth_fields = {}
-    for field in handle.info().getheader("www-authenticate", "").split(","):
+    try:
+        authheader = handle.getheader('www-authenticate', '')
+    except AttributeError:  # python < 3
+        authheader = handle.info().get('www-authenticate', '')
+    for field in authheader.split(','):
         field = field.strip()
         space = field.find(" ")
         if space == -1:
@@ -128,7 +132,8 @@ def www_auth(handle):
 def checkRequiredOptions(parser):
     missing_options = []
     for option in parser.option_list:
-        if re.search('\(required\)$', option.help) and eval('options.' + option.dest) is None:
+        if (re.search(r'\(required\)$', option.help) and
+                eval('options.' + option.dest) is None):
             missing_options.extend(option._long_opts)
     if len(missing_options) > 0:
         usage(parser, "Missing required parameters: " + str(missing_options))
@@ -152,8 +157,11 @@ class _SslSocketWrapper(object):
         # forward everything to underlying connection
         return getattr(self._conn, name)
 
-    def makefile(self, mode, bufsize):
-        return socket._fileobject(self._conn, mode, bufsize)
+    def makefile(self, mode, bufsize=0):
+        try:
+            return socket.SocketIO(self._conn, mode)
+        except AttributeError:  # python < 3
+            return socket._fileobject(self._conn, mode, bufsize)
 
     def close(self):
         # m2crypto always shuts down the SSL connection in the connection
@@ -290,7 +298,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     # going to reload it through der encoding/decoding.
     proxy_subject = X509.X509_Name()
     subject = cert.get_subject()
-    for idx in xrange(subject.entry_count()):
+    for idx in range(subject.entry_count()):
         entry = subject[idx].x509_name_entry
         m2.x509_name_add_entry(proxy_subject._ptr(), entry, -1, 0)
     proxy_subject.add_entry_by_txt('CN', ASN1.MBSTRING_ASC,
@@ -336,7 +344,8 @@ def replace_certsubject(strng, cert):
 
 # This function was borrowed from http://stackoverflow.com/a/93029
 # It is used below to sanitize input that could come from the user
-control_chars = ''.join(map(unichr, range(0, 32) + range(127, 160)))
+control_chars = ''.join(map(unichr, list(range(0, 32)) +
+                                    list(range(127, 160))))
 control_char_re = re.compile('[%s]' % re.escape(control_chars))
 
 
@@ -829,9 +838,11 @@ def main():
     idpurl = None
     idpkrburl = None
     for line in idplist.splitlines():
+        if isinstance(line, bytes):
+            line = str(line.decode('utf-8'))
         idx = line.index(' ')
         name = line[idx+1:]
-        if re.match(options.institution + '($| \()', name) is not None:
+        if re.match(options.institution + r'($| \()', name) is not None:
             url = line[0:idx]
             if line.endswith(' (Kerberos)'):
                 idpkrburl = url
@@ -1026,11 +1037,15 @@ def main():
             password = getpass.getpass(promptstr + ': ')
         except:
             fatal("failed to get password")
-        base64string = base64.encodestring(
-            '%s:%s' % (username, password)).replace('\n', '')
+        pair = '%s:%s' % (username, password)
+        try:
+            base64string = base64.encodebytes(
+                pair.encode('utf-8')).decode('utf-8')
+        except AttributeError:  # python < 3
+            base64string = base64.encodestring(pair)
         headers = {
             'Content-Type': 'text/xml',
-            'Authorization': 'Basic ' + base64string
+            'Authorization': 'Basic ' + base64string.replace('\n', '')
         }
 
         # POST the AuthnRequest to the IDP
@@ -1239,7 +1254,7 @@ def main():
     try:
         fd, path = tempfile.mkstemp(
             prefix=os.path.dirname(outfile)+'/.cigetcert')
-        handle = os.fdopen(fd, 'w')
+        handle = os.fdopen(fd, 'wb')
     except Exception as e:
         efatal("failure creating file", e)
     try:
