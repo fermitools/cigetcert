@@ -1,7 +1,7 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.16
-Release: 2%{?dist}
+Version: 1.17
+Release: 1%{?dist}
 License: BSD
 Group: Applications/System
 URL: http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
@@ -53,6 +53,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Sep 27 2018 Dave Dykstra <dwd@fnal.gov> 1.17-1
+- Make source code compatible with python3.
+
 * Fri Mar 03 2017 Dave Dykstra <dwd@fnal.gov> 1.16-2
 - In /usr/bin/cigetcert, invoke python with the '-E' option to avoid
   variables like PYTHONHOME.
