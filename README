@@ -58,7 +58,7 @@ A formatted man page is available at
 
 Required Software
 -----------------
-python >= 2.4 and < 3, including add-on packages m2crypto, pyOpenSSL,
+python >= 2.4, including add-on packages m2crypto, pyOpenSSL,
     python-lxml, and python-kerberos
 
 
