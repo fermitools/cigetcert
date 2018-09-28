@@ -117,7 +117,7 @@ def www_auth(handle):
     try:
         authheader = handle.getheader('www-authenticate', '')
     except AttributeError:  # python < 3
-        authheader = handle.info().get('www-authenticate', '')
+        authheader = handle.info().getheader('www-authenticate', '')
     for field in authheader.split(','):
         field = field.strip()
         space = field.find(" ")
