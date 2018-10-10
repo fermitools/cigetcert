@@ -328,7 +328,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
 #   be used if someone isn't using MyProxy.  In order to catch programming
 #   errors, don't strip off more than 5 levels of proxies.
 # return replaced string
-def replace_certsubject(strng, cert):
+def replace_certsubject(strng, cert, outfile):
     certsubject = x509name_to_str(cert.get_subject())
     levels = 0
     while True:
@@ -336,8 +336,8 @@ def replace_certsubject(strng, cert):
         if newsubj == certsubject:
             break
         levels += 1
-        if (levels > 5) and options.verbose:
-            print("Too many levels of proxies, more than 5")
+        if (levels > 5):
+            reusefail("Too many levels of proxies, more than 5", outfile)
             break
         certsubject = newsubj
     return strng.replace('%certsubject', certsubject)
@@ -755,7 +755,7 @@ def main():
                         sys.stdout.flush()
 
                     myproxyinfousername = replace_certsubject(
-                        myproxyusername, existing)
+                        myproxyusername, existing, outfile)
 
                     try:
                         sslsock = start_myproxy_command(outfile, '2',
@@ -1317,7 +1317,7 @@ def main():
         sys.stdout.write("Storing proxy in MyProxy ...")
         sys.stdout.flush()
 
-    myproxyusername = replace_certsubject(myproxyusername, firstcert)
+    myproxyusername = replace_certsubject(myproxyusername, firstcert, outfile)
 
     try:
         sslsock = start_myproxy_command(outfile, '5', myproxyusername,
