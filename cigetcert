@@ -33,14 +33,7 @@ import sys
 import os
 import re
 import pwd
-from lxml import etree
-import httplib
 import socket
-import urllib
-import urllib2
-import urlparse
-import cookielib
-import kerberos
 import getpass
 import base64
 import string
@@ -51,6 +44,20 @@ import calendar
 import struct
 import tempfile
 
+try:
+    from http import (client as http_client, cookiejar as http_cookiejar)
+    from urllib import (request as urllib_request, parse as urllib_parse)
+    unichr = chr
+except ImportError:  # python < 3
+    import cookielib as http_cookiejar
+    import httplib as http_client
+    import urllib2 as urllib_request
+    import urlparse as urllib_parse
+    from urllib import urlencode
+    urllib_parse.urlencode = urlencode
+
+import kerberos
+from lxml import etree
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
@@ -107,7 +114,11 @@ def reusefail(msg, outfile, code=1):
 # this is from http://python-notes.curiousefficiency.org/en/latest/python_kerberos.html
 def www_auth(handle):
     auth_fields = {}
-    for field in handle.info().getheader("www-authenticate", "").split(","):
+    try:
+        authheader = handle.getheader('www-authenticate', '')
+    except AttributeError:  # python < 3
+        authheader = handle.info().getheader('www-authenticate', '')
+    for field in authheader.split(','):
         field = field.strip()
         space = field.find(" ")
         if space == -1:
@@ -122,7 +133,8 @@ def www_auth(handle):
 def checkRequiredOptions(parser):
     missing_options = []
     for option in parser.option_list:
-        if re.search('\(required\)$', option.help) and eval('options.' + option.dest) is None:
+        if (re.search(r'\(required\)$', option.help) and
+                eval('options.' + option.dest) is None):
             missing_options.extend(option._long_opts)
     if len(missing_options) > 0:
         usage(parser, "Missing required parameters: " + str(missing_options))
@@ -146,8 +158,11 @@ class _SslSocketWrapper(object):
         # forward everything to underlying connection
         return getattr(self._conn, name)
 
-    def makefile(self, mode, bufsize):
-        return socket._fileobject(self._conn, mode, bufsize)
+    def makefile(self, mode, bufsize=0):
+        try:
+            return socket.SocketIO(self._conn, mode)
+        except AttributeError:  # python < 3
+            return socket._fileobject(self._conn, mode, bufsize)
 
     def close(self):
         # m2crypto always shuts down the SSL connection in the connection
@@ -159,13 +174,12 @@ class _SslSocketWrapper(object):
 
 
 # validate a certificate on an HTTPS connection with M2Crypto
-class CertValidatingHTTPSConnection(httplib.HTTPConnection):
-    default_port = httplib.HTTPS_PORT
+class CertValidatingHTTPSConnection(http_client.HTTPConnection):
+    default_port = http_client.HTTPS_PORT
 
     def __init__(self, host, port=None, key_file=None, cert_file=None,
-                 cert_chain_file=None, cafile=None, capath=None, strict=None,
-                 **kwargs):
-        httplib.HTTPConnection.__init__(self, host, port, strict, **kwargs)
+                 cert_chain_file=None, cafile=None, capath=None, **kwargs):
+        http_client.HTTPConnection.__init__(self, host, port, **kwargs)
         self.host = host
         self.key_file = key_file
         self.cert_file = cert_file
@@ -217,9 +231,9 @@ class CertValidatingHTTPSConnection(httplib.HTTPConnection):
         self.sock = _SslSocketWrapper(sslconn)
 
 
-class VerifiedHTTPSHandler(urllib2.HTTPSHandler):
+class VerifiedHTTPSHandler(urllib_request.HTTPSHandler):
     def __init__(self, **kwargs):
-        urllib2.HTTPSHandler.__init__(self)
+        urllib_request.HTTPSHandler.__init__(self)
         self._connection_args = kwargs
 
     def https_open(self, req):
@@ -285,7 +299,7 @@ def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     # going to reload it through der encoding/decoding.
     proxy_subject = X509.X509_Name()
     subject = cert.get_subject()
-    for idx in xrange(subject.entry_count()):
+    for idx in range(subject.entry_count()):
         entry = subject[idx].x509_name_entry
         m2.x509_name_add_entry(proxy_subject._ptr(), entry, -1, 0)
     proxy_subject.add_entry_by_txt('CN', ASN1.MBSTRING_ASC,
@@ -331,7 +345,8 @@ def replace_certsubject(strng, cert):
 
 # This function was borrowed from http://stackoverflow.com/a/93029
 # It is used below to sanitize input that could come from the user
-control_chars = ''.join(map(unichr, range(0, 32) + range(127, 160)))
+control_chars = ''.join(map(unichr, list(range(0, 32)) +
+                                    list(range(127, 160))))
 control_char_re = re.compile('[%s]' % re.escape(control_chars))
 
 
@@ -545,8 +560,8 @@ def main():
     parseargs(parser, envargs + sys.argv[1:])
 
     # Set up https handler/opener with cookies
-    cookiejar = cookielib.CookieJar()
-    cookiehandler = urllib2.HTTPCookieProcessor(cookiejar)
+    cookiejar = http_cookiejar.CookieJar()
+    cookiehandler = urllib_request.HTTPCookieProcessor(cookiejar)
     httpshandler = VerifiedHTTPSHandler(
         cafile=options.cafile, capath=options.capath)
     if options.debug:
@@ -555,7 +570,7 @@ def main():
     #   to the Assertion Consumer, below.  It doesn't hurt on the other
     #   connections os use the same handler for everything.
 
-    class NoRedirectHandler(urllib2.HTTPRedirectHandler):
+    class NoRedirectHandler(urllib_request.HTTPRedirectHandler):
         def http_error_302(self, request, response, code, msg, hdrs):
             if options.debug:
                 print("###### Ignoring redirect")
@@ -563,11 +578,11 @@ def main():
     noredirecthandler = NoRedirectHandler()
     # Prevent http connections
 
-    class NoHttpHandler(urllib2.HTTPHandler):
+    class NoHttpHandler(urllib_request.HTTPHandler):
         def http_open(self, req):
             raise Exception('only https:// and file:// supported')
     nohttphandler = NoHttpHandler()
-    opener = urllib2.build_opener(
+    opener = urllib_request.build_opener(
         cookiehandler, noredirecthandler, nohttphandler, httpshandler)
     if options.optserver is not None:
         # read additional options from optserver
@@ -576,7 +591,7 @@ def main():
             optserver = 'https://' + optserver + '/' + prog + 'opts.txt'
         if options.verbose or options.debug:
             print("Fetching options from " + optserver)
-        optrequest = urllib2.Request(url=optserver)
+        optrequest = urllib_request.Request(url=optserver)
         try:
             opthandle = opener.open(optrequest)
         except Exception as e:
@@ -594,7 +609,7 @@ def main():
         parseargs(parser, serverargs + envargs + sys.argv[1:])
 
     if options.listinstitutions:
-        idplistrequest = urllib2.Request(url=options.idplisturl)
+        idplistrequest = urllib_request.Request(url=options.idplisturl)
         try:
             idplisthandle = opener.open(idplistrequest)
         except Exception as e:
@@ -814,7 +829,7 @@ def main():
     elif showprogress:
         sys.stdout.write("Authorizing ...")
         sys.stdout.flush()
-    idplistrequest = urllib2.Request(url=options.idplisturl)
+    idplistrequest = urllib_request.Request(url=options.idplisturl)
     try:
         idplisthandle = opener.open(idplistrequest)
     except Exception as e:
@@ -824,9 +839,11 @@ def main():
     idpurl = None
     idpkrburl = None
     for line in idplist.splitlines():
+        if isinstance(line, bytes):
+            line = str(line.decode('utf-8'))
         idx = line.index(' ')
         name = line[idx+1:]
-        if re.match(options.institution + '($| \()', name) is not None:
+        if re.match(options.institution + r'($| \()', name) is not None:
             url = line[0:idx]
             if line.endswith(' (Kerberos)'):
                 idpkrburl = url
@@ -861,7 +878,7 @@ def main():
     elif showprogress:
         sys.stdout.write('.')
         sys.stdout.flush()
-    sprequest = urllib2.Request(url=options.spurl, headers=headers)
+    sprequest = urllib_request.Request(url=options.spurl, headers=headers)
     try:
         sphandle = opener.open(sprequest)
     except Exception as e:
@@ -937,7 +954,7 @@ def main():
         elif showprogress:
             sys.stdout.write('.')
             sys.stdout.flush()
-        idprequest = urllib2.Request(url=url)
+        idprequest = urllib_request.Request(url=url)
         try:
             notauthidphandle = opener.open(idprequest)
         except Exception as e:
@@ -958,7 +975,7 @@ def main():
     idphandle = None
     if options.kerberos > 0:
         if 'negotiate' in wwwauthenticate:
-            netloc = urlparse.urlsplit(idpkrburl)[1]
+            netloc = urllib_parse.urlsplit(idpkrburl)[1]
             hostname = re.sub(":.*", "", netloc)
             service = "HTTP@" + hostname
             if options.debug:
@@ -990,7 +1007,7 @@ def main():
                     sys.stdout.flush()
 
                 authidpurl = idpkrburl
-                idprequest = urllib2.Request(
+                idprequest = urllib_request.Request(
                     idpkrburl, headers=headers, data=idpbody)
                 try:
                     idphandle = opener.open(idprequest)
@@ -1020,18 +1037,23 @@ def main():
             password = getpass.getpass(promptstr + ': ')
         except:
             fatal("failed to get password")
-        base64string = base64.encodestring(
-            '%s:%s' % (username, password)).replace('\n', '')
+        pair = '%s:%s' % (username, password)
+        try:
+            base64string = base64.encodebytes(
+                pair.encode('utf-8')).decode('utf-8')
+        except AttributeError:  # python < 3
+            base64string = base64.encodestring(pair)
         headers = {
             'Content-Type': 'text/xml',
-            'Authorization': 'Basic ' + base64string
+            'Authorization': 'Basic ' + base64string.replace('\n', '')
         }
 
         # POST the AuthnRequest to the IDP
         if options.verbose:
             print("Making authorized request to IdP " + idpurl)
         authidpurl = idpurl
-        idprequest = urllib2.Request(idpurl, headers=headers, data=idpbody)
+        idprequest = urllib_request.Request(idpurl, headers=headers,
+                                            data=idpbody)
         try:
             idphandle = opener.open(idprequest)
         except Exception as e:
@@ -1078,7 +1100,7 @@ def main():
             </S:Envelope>
             """
         headers = {'Content-Type': 'application/vnd.paos+xml'}
-        request = urllib2.Request(
+        request = urllib_request.Request(
             responseConsumerURL, headers=headers, data=soapfault)
         # POST the fault to the SP but ignore any failure
         try:
@@ -1110,7 +1132,7 @@ def main():
         sys.stdout.write('Fetching certificate ...')
         sys.stdout.flush()
     headers = {'Content-Type': 'application/vnd.paos+xml'}
-    acrequest = urllib2.Request(
+    acrequest = urllib_request.Request(
         assertionConsumerServiceURL, headers=headers, data=acbody)
     try:
         achandle = opener.open(acrequest)
@@ -1154,15 +1176,15 @@ def main():
         ('p12password', p12password),
         ('p12lifetime', math.ceil(options.hours))
     ]
-    certformdata = urllib.urlencode(certformvars)
+    certformdata = urllib_parse.urlencode(certformvars).encode('utf-8')
 
     if options.verbose:
         print("Requesting certificate from SP " + options.spurl)
     elif showprogress:
         sys.stdout.write('.')
         sys.stdout.flush()
-    spcertrequest = urllib2.Request(url=options.spurl, data=certformdata,
-                                    headers=headers)
+    spcertrequest = urllib_request.Request(url=options.spurl,
+                                           data=certformdata, headers=headers)
     try:
         spcerthandle = opener.open(spcertrequest)
     except Exception as e:
@@ -1232,7 +1254,7 @@ def main():
     try:
         fd, path = tempfile.mkstemp(
             prefix=os.path.dirname(outfile)+'/.cigetcert')
-        handle = os.fdopen(fd, 'w')
+        handle = os.fdopen(fd, 'wb')
     except Exception as e:
         efatal("failure creating file", e)
     try:
