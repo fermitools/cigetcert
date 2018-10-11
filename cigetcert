@@ -371,7 +371,7 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
                         (options.myproxyserver, type(e).__name__, str(e)))
 
     sslsock = conn.sock
-    sslsock.write('0')  # required by MyProxy protocol
+    sslsock.write(b'0')  # required by MyProxy protocol
 
     storecmd = 'VERSION=MYPROXYv2\n'
     storecmd += 'COMMAND=' + str(command) + '\n'
@@ -388,7 +388,7 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
         sys.stdout.write(storecmd)
         print("###### End MyProxy command")
 
-    sslsock.write(storecmd)
+    sslsock.write(storecmd.encode('utf-8'))
 
     return sslsock
 
@@ -398,6 +398,8 @@ def start_myproxy_command(chainfile, command, username, passphrase, lifehours,
 def parse_myproxy_response(sslsock):
 
     text = sslsock.recv(8192)
+    if isinstance(text, bytes):
+        text = text.decode('utf-8')
     if options.debug:
         print("###### Begin MyProxy response")
 
@@ -597,6 +599,9 @@ def main():
         except Exception as e:
             efatal("fetch of options from %s failed" % optserver, e)
         opts = opthandle.read()
+        if isinstance(opts, bytes):
+            opts = str(opts.decode('utf-8'))
+        opthandle.close()
         if options.debug:
             print("##### Begin additional options")
             print(opts)
@@ -1217,7 +1222,10 @@ def main():
 
     if options.debug:
         print("###### Begin certificate")
-        sys.stdout.write(certstr)
+        if isinstance(certstr, bytes):
+            sys.stdout.write(certstr.decode('utf-8'))
+        else:
+            sys.stdout.write(certstr)
         print("###### End certificate")
         # deliberately not printing key, to prevent somebody from
         #  accidentally storing it on disk if they redirect stdout
@@ -1327,7 +1335,10 @@ def main():
 
     if options.debug:
         print("###### Begin chain sending to MyProxy")
-        sys.stdout.write(myproxystr + myproxykeystr + certstr)
+        if isinstance(certstr, bytes):
+            sys.stdout.write(myproxystr.decode('utf-8') + myproxykeystr.decode('utf-8') + certstr.decode('utf-8'))
+        else:
+            sys.stdout.write(myproxystr + myproxykeystr + certstr)
         print("###### End chain sending to MyProxy")
 
     # these have to all be sent in one write or sometimes MyProxy
