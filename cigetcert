@@ -27,7 +27,7 @@
 from __future__ import print_function
 
 prog = "cigetcert"
-version = "1.17"
+version = "1.18"
 
 import sys
 import os

@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.17
+Version: 1.18
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,8 +53,13 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Oct 10 2018 Dave Dykstra <dwd@fnal.gov> 1.18-1
+- Make source code completely compatible with python3
+- Fix check for more than 5 proxy levels to apply when verbose option
+  is not set
+
 * Thu Sep 27 2018 Dave Dykstra <dwd@fnal.gov> 1.17-1
-- Make source code compatible with python3.
+- Make source code partially compatible with python3.
 
 * Fri Mar 03 2017 Dave Dykstra <dwd@fnal.gov> 1.16-2
 - In /usr/bin/cigetcert, invoke python with the '-E' option to avoid
