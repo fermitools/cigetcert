@@ -41,6 +41,7 @@ import random
 import math
 import time
 import calendar
+import ssl
 import struct
 import tempfile
 
@@ -64,15 +65,16 @@ from OpenSSL import crypto
 import shlex
 from optparse import OptionParser
 
+DEFAULT_VERIFY_PATHS = ssl.get_default_verify_paths()
+DEFAULT_CAFILE = '/etc/ssl/certs/ca-certificates.crt'  # debian
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": "/etc/pki/tls/cert.pem",
-    "capath": "/etc/grid-security/certificates"
+    "cafile": DEFAULT_VERIFY_PATHS.cafile or DEFAULT_CA_FILE,
+    "capath": os.getenv('X509_CERT_DIR') or
+              DEFAULT_VERIFY_PATHS.capath or
+              "/etc/grid-security/certificates",
 }
-
-# this is the default CA file on Debian
-altcafile = '/etc/ssl/certs/ca-certificates.crt'
 
 # these are global
 options = None
@@ -473,8 +475,6 @@ def main():
     parser.add_option("", "--spurl",
                       metavar="URL", default=defaults['spurl'],
                       help="Service Provider URL")
-    if not os.path.isfile(defaults['cafile']) and os.path.isfile(altcafile):
-        defaults['cafile'] = altcafile
     parser.add_option("", "--cafile",
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
