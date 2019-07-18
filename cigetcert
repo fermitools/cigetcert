@@ -620,7 +620,7 @@ def main():
         except Exception as e:
             efatal("fetch of idplist from %s failed" % options.idplisturl, e)
         names = [
-            re.sub(rb' \(Kerberos\)', b'', line.split(b' ', 1)[-1].rstrip()) for
+            re.sub(br' \(Kerberos\)', b'', line.split(b' ', 1)[-1].rstrip()) for
             line in idplisthandle
         ]
         for name in sorted(set(names)):
