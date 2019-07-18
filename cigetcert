@@ -65,15 +65,26 @@ from OpenSSL import crypto
 import shlex
 from optparse import OptionParser
 
-DEFAULT_VERIFY_PATHS = ssl.get_default_verify_paths()
-DEFAULT_CAFILE = '/etc/ssl/certs/ca-certificates.crt'  # debian
+# get the default certificates paths for this platform
+_default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
+_default_capath = os.getenv('X509_CERT_DIR') or "/etc/grid-security/certificates"
+try:
+    _paths = ssl.get_default_verify_paths()
+except AttributeError:  # python < 2.7
+    pass
+else:
+    # always prefer python's default cafile
+    if _paths.cafile:
+        _default_cafile = _paths.cafile
+    # prefer grid-security default capath
+    if _paths.capath and not os.path.isdir(_default_capath):
+        _default_capath = _paths.capath
+
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": DEFAULT_VERIFY_PATHS.cafile or DEFAULT_CA_FILE,
-    "capath": os.getenv('X509_CERT_DIR') or
-              DEFAULT_VERIFY_PATHS.capath or
-              "/etc/grid-security/certificates",
+    "cafile": _default_cafile if os.path.isfile(_default_cafile or '') else None,
+    "capath": _default_capath if os.path.isdir(_default_capath or '') else None,
 }
 
 # these are global
@@ -436,14 +447,6 @@ def parseargs(parser, argv):
     if len(args) != 0:
         usage(parser, "no non-option arguments expected")
 
-    # This is done here because capath may be needed to retrieve
-    #  the options file.
-    if options.capath is None:
-        capath = os.getenv('X509_CERT_DIR')
-        if capath is None:
-            capath = defaults['capath']
-        options.capath = str(capath)
-
 
 ###  cigetcert main ####
 def main():
@@ -479,10 +482,8 @@ def main():
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath",
-                      metavar="path",
-                      help="Certifying Authority certificates directory " +
-                      '[default: $X509_CERT_DIR or ' +
-                      defaults['capath'] + ']')
+                      metavar="path", default=defaults['capath'],
+                      help="Certifying Authority certificates directory")
     parser.add_option("-k", "--kerberos",
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
