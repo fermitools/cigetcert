@@ -1,0 +1,4 @@
+include cigetcert*
+include COPYING
+include Makefile
+include README
