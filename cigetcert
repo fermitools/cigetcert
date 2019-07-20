@@ -79,11 +79,13 @@ else:
     # prefer grid-security default capath
     if _paths.capath and not os.path.isdir(_default_capath):
         _default_capath = _paths.capath
+if not os.path.isfile(_default_cafile or ''):  # use ca-certificates file:
+    _default_cafile = "/etc/pki/tls/cert.pem"
 
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": _default_cafile if os.path.isfile(_default_cafile or '') else None,
+    "cafile": _default_cafile,
     "capath": _default_capath,
 }
 
