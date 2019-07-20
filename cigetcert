@@ -67,7 +67,7 @@ from optparse import OptionParser
 
 # get the default certificates paths for this platform
 _default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
-_default_capath = os.getenv('X509_CERT_DIR') or "/etc/grid-security/certificates"
+_default_capath = "/etc/grid-security/certificates"
 try:
     _paths = ssl.get_default_verify_paths()
 except AttributeError:  # python < 2.7
@@ -84,7 +84,7 @@ defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
     "cafile": _default_cafile if os.path.isfile(_default_cafile or '') else None,
-    "capath": _default_capath if os.path.isdir(_default_capath or '') else None,
+    "capath": _default_capath,
 }
 
 # these are global
@@ -447,6 +447,11 @@ def parseargs(parser, argv):
     if len(args) != 0:
         usage(parser, "no non-option arguments expected")
 
+    # This is done here because capath may be needed to retrieve
+    #  the options file.
+    if options.capath is None:
+        options.capath = os.getenv('X509_CERT_DIR') or defaults['capath']
+
 
 ###  cigetcert main ####
 def main():
@@ -482,8 +487,10 @@ def main():
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
     parser.add_option("", "--capath",
-                      metavar="path", default=defaults['capath'],
-                      help="Certifying Authority certificates directory")
+                      metavar="path",
+                      help="Certifying Authority certificates directory " +
+                      '[default: $X509_CERT_DIR or ' +
+                      defaults['capath'] + ']')
     parser.add_option("-k", "--kerberos",
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
