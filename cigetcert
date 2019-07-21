@@ -41,6 +41,7 @@ import random
 import math
 import time
 import calendar
+import ssl
 import struct
 import tempfile
 
@@ -64,15 +65,29 @@ from OpenSSL import crypto
 import shlex
 from optparse import OptionParser
 
+# get the default certificates paths for this platform
+_default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
+_default_capath = "/etc/grid-security/certificates"
+try:
+    _paths = ssl.get_default_verify_paths()
+except AttributeError:  # python < 2.7
+    pass
+else:
+    # always prefer python's default cafile
+    if _paths.cafile:
+        _default_cafile = _paths.cafile
+    # prefer grid-security default capath
+    if _paths.capath and not os.path.isdir(_default_capath):
+        _default_capath = _paths.capath
+if not os.path.isfile(_default_cafile or ''):  # use ca-certificates file:
+    _default_cafile = "/etc/pki/tls/cert.pem"
+
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": "/etc/pki/tls/cert.pem",
-    "capath": "/etc/grid-security/certificates"
+    "cafile": _default_cafile,
+    "capath": _default_capath,
 }
-
-# this is the default CA file on Debian
-altcafile = '/etc/ssl/certs/ca-certificates.crt'
 
 # these are global
 options = None
@@ -437,10 +452,7 @@ def parseargs(parser, argv):
     # This is done here because capath may be needed to retrieve
     #  the options file.
     if options.capath is None:
-        capath = os.getenv('X509_CERT_DIR')
-        if capath is None:
-            capath = defaults['capath']
-        options.capath = str(capath)
+        options.capath = os.getenv('X509_CERT_DIR') or defaults['capath']
 
 
 ###  cigetcert main ####
@@ -473,8 +485,6 @@ def main():
     parser.add_option("", "--spurl",
                       metavar="URL", default=defaults['spurl'],
                       help="Service Provider URL")
-    if not os.path.isfile(defaults['cafile']) and os.path.isfile(altcafile):
-        defaults['cafile'] = altcafile
     parser.add_option("", "--cafile",
                       metavar="file", default=defaults['cafile'],
                       help="Certifying Authority certificates bundle file")
