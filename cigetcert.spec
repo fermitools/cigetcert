@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.18
+Version: 1.19
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -53,6 +53,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Sat Jul 20 2019 Dave Dykstra <dwd@fnal.gov> 1.19-1
+- Add setup.py for making a standard python installation
+- Use ssl.get_default_verify_paths() to find default CA paths, when possible
+- Make --listinstitutions compatible with python3
+
 * Wed Oct 10 2018 Dave Dykstra <dwd@fnal.gov> 1.18-1
 - Make source code completely compatible with python3
 - Fix check for more than 5 proxy levels to apply when verbose option
