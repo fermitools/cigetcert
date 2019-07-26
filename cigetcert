@@ -1305,7 +1305,11 @@ def main():
         pass
     try:
         fd, path = tempfile.mkstemp(
-            prefix=os.path.dirname(outfile)+'/.cigetcert')
+            prefix=os.path.join(
+                os.path.dirname(outfile),
+                '.cigetcert',
+            ),
+        )
         handle = os.fdopen(fd, 'wb')
     except Exception as e:
         efatal("failure creating file", e)
