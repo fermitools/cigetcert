@@ -81,6 +81,19 @@ options = None
 showprogress = False
 
 
+def get_default_output_filename():
+    if os.name == "nt":
+        tmpdir = os.path.expandvars(r'%SYSTEMROOT%\Temp')
+        tmpname = "x509up_{}".format(USERNAME)
+    else:
+        tmpdir = "/tmp"
+        tmpname = "x509up_u{}".format(os.getuid())
+    return os.path.join(tmpdir, tmpname)
+
+
+defaults["out"] = get_default_output_filename()
+
+
 def get_ca_defaults():
     # on Windows and macOS, always trust the built-in defaults
     if platform.system() in {"Windows", "Darwin"}:
@@ -533,7 +546,7 @@ def main():
     parser.add_option("-o", "--out",
                       metavar="path",
                       help="file path to save certificate and key chain " +
-                            "[default: $X509_USER_PROXY or /tmp/x509up_u%uid]")
+                            "[default: $X509_USER_PROXY or {}]".format(defaults["out"]))
     parser.add_option("", "--reuseonly",
                       action="store_const", const=1, default=0,
                       help="only verify existing proxy can be reused " +
@@ -663,9 +676,7 @@ def main():
 
     # calculate defaults for options that are too complex for "default" keyword
     if options.out is None:
-        options.out = os.getenv("X509_USER_PROXY")
-        if options.out is None:
-            options.out = "/tmp/x509up_u%uid"
+        options.out = os.getenv("X509_USER_PROXY", defaults["out"])
     if options.hours > maxproxyhours:
         if options.proxyhours is None:
             options.proxyhours = defproxyhours
@@ -731,7 +742,9 @@ def main():
     username = options.username.replace(
         "%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
     myproxyusername = options.myproxyusername.replace("%username", username)
-    outfile = options.out.replace("%uid", str(os.geteuid()))
+    outfile = options.out
+    if "%uid" in outfile:  # this doesn't exist on windows
+        outfile = outfile.replace("%uid", str(os.geteuid()))
     if os.path.exists(outfile):
         if options.reuseonly == 0:
             if not os.access(outfile, os.W_OK):
