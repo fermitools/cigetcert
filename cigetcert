@@ -1213,8 +1213,11 @@ def main():
     # The ascii letters are for strength, the digits and special characters
     #  are just in case future rules enforce such things.
     # Could instead use a CSR but that limits certificates to 277 hours.
-    p12password = random_string(16, string.ascii_letters) + \
-        random_string(2, string.digits) + random_string(2, '!@#$%^&*()')
+    p12password = (
+        random_string(16, string.ascii_letters) +
+        random_string(2, string.digits) +
+        random_string(2, '!@#$%^&*()')
+    ).encode("utf-8")
 
     certformvars = [
         ('submit', 'pkcs12'),
