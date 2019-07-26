@@ -32,7 +32,6 @@ version = "1.19"
 import sys
 import os
 import re
-import pwd
 import socket
 import getpass
 import base64
@@ -70,6 +69,7 @@ if os.name == "nt":
 else:
     import kerberos
 
+USERNAME = os.getlogin()
 
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
@@ -739,8 +739,7 @@ def main():
         print()
 
     # Check to see if an adequate proxy or cert already exists
-    username = options.username.replace(
-        "%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
+    username = options.username.replace("%currentuser", USERNAME)
     myproxyusername = options.myproxyusername.replace("%username", username)
     outfile = options.out
     if "%uid" in outfile:  # this doesn't exist on windows
