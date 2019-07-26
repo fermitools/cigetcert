@@ -44,6 +44,7 @@ import calendar
 import ssl
 import struct
 import tempfile
+import platform
 
 try:
     from http import (client as http_client, cookiejar as http_cookiejar)
@@ -69,33 +70,50 @@ if os.name == "nt":
 else:
     import kerberos
 
-# get the default certificates paths for this platform
-_default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
-_default_capath = "/etc/grid-security/certificates"
-try:
-    _paths = ssl.get_default_verify_paths()
-except AttributeError:  # python < 2.7
-    pass
-else:
-    # always prefer python's default cafile
-    if _paths.cafile:
-        _default_cafile = _paths.cafile
-    # prefer grid-security default capath
-    if _paths.capath and not os.path.isdir(_default_capath):
-        _default_capath = _paths.capath
-if not os.path.isfile(_default_cafile or ''):  # use ca-certificates file:
-    _default_cafile = "/etc/pki/tls/cert.pem"
 
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": _default_cafile,
-    "capath": _default_capath,
 }
 
 # these are global
 options = None
 showprogress = False
+
+
+def get_ca_defaults():
+    # on Windows and macOS, always trust the built-in defaults
+    if platform.system() in {"Windows", "Darwin"}:
+        paths = ssl.get_default_verify_paths()
+        return {
+            "cafile": paths.cafile,
+            "capath": paths.capath,
+        }
+
+    # on Linux we can be a bit more discerning
+    cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
+    capath = "/etc/grid-security/certificates"
+    try:
+        paths = ssl.get_default_verify_paths()
+    except AttributeError:  # python < 2.7
+        pass
+    else:
+        # always prefer python's default cafile
+        if paths.cafile:
+            cafile = paths.cafile
+        # prefer grid-security default capath
+        if paths.capath and not os.path.isdir(capath):
+            capath = paths.capath
+    if not os.path.isfile(cafile or ''):  # use ca-certificates file:
+        cafile = "/etc/pki/tls/cert.pem"
+
+    return {
+        "cafile": cafile,
+        "capath": capath,
+    }
+
+
+defaults.update(get_ca_defaults())
 
 
 def usage(parser, msg):
@@ -496,7 +514,7 @@ def main():
                       metavar="path",
                       help="Certifying Authority certificates directory " +
                       '[default: $X509_CERT_DIR or ' +
-                      defaults['capath'] + ']')
+                      str(defaults['capath']) + ']')
     parser.add_option("-k", "--kerberos",
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
