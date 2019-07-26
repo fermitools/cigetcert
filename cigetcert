@@ -57,13 +57,17 @@ except ImportError:  # python < 3
     from urllib import urlencode
     urllib_parse.urlencode = urlencode
 
-import kerberos
 from lxml import etree
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 from OpenSSL import crypto
 
 import shlex
 from optparse import OptionParser
+
+if os.name == "nt":
+    import winkerberos as kerberos
+else:
+    import kerberos
 
 # get the default certificates paths for this platform
 _default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian

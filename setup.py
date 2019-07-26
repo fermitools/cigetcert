@@ -73,7 +73,7 @@ setup(
     install_requires=[
         "lxml",
         "M2Crypto",
-        "pykerberos",
+        "winkerberos" if os.name == "nt" else "pykerberos",
         "pyOpenSSL",
     ],
 )
