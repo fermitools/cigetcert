@@ -1,7 +1,7 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
 Version: 1.19
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: BSD
 Group: Applications/System
 URL: http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
@@ -9,17 +9,22 @@ URL: http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
 # $ curl -o cigetcert-%{version}.tar.gz \
 #    https://codeload.github.com/fermitools/cigetcert/tar.gz/%{version}
 Source0: %{name}-%{version}.tar.gz
-Requires: python
+%if %{?rhel}%{!?rhel:8} < 8
+%define _python python
 Requires: m2crypto
 Requires: pyOpenSSL
-Requires: python-lxml
-Requires: python-kerberos
-BuildRequires: python
+%else
+%define _python python3
+%define _pycompflag -b
+Requires: python3-m2crypto
+Requires: python3-pyOpenSSL
+%endif
+Requires: %{_python}
+Requires: %{_python}-lxml
+Requires: %{_python}-kerberos
+BuildRequires: %{_python}
 
 BuildArch: noarch
-%if %{?rhel}%{!?rhel:6} <= 5
-BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
-%endif
 
 %description
 cigetcert gets an X.509 certificate from a SAML 2.0 Service Provider
@@ -38,9 +43,11 @@ rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
 mkdir -p $RPM_BUILD_ROOT%{_libexecdir}/%{name}
 mkdir -p $RPM_BUILD_ROOT%{_datadir}/man/man1
-cp %{name}.sh $RPM_BUILD_ROOT%{_bindir}/%{name}
-cp %{name} $RPM_BUILD_ROOT%{_libexecdir}/%{name}/%{name}.py
-python -Em compileall -d %{_libexecdir}/%{name} $RPM_BUILD_ROOT%{_libexecdir}/%{name}
+sed 's,/usr/bin/python,/usr/bin/%{_python},' %{name}.sh >$RPM_BUILD_ROOT%{_bindir}/%{name}
+chmod 755 $RPM_BUILD_ROOT%{_bindir}/%{name}
+sed 's,/usr/bin/python,/usr/bin/%{_python},' %{name} >$RPM_BUILD_ROOT%{_libexecdir}/%{name}/%{name}.py
+chmod 644 $RPM_BUILD_ROOT%{_libexecdir}/%{name}/%{name}.py
+%{_python} -Em compileall %{?_pycompflag} -d %{_libexecdir}/%{name} $RPM_BUILD_ROOT%{_libexecdir}/%{name}
 gzip -c %{name}.1 >$RPM_BUILD_ROOT%{_datadir}/man/man1/%{name}.1.gz
 
 %clean
@@ -53,6 +60,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Feb 26 2020 Dave Dykstra <dwd@fnal.gov> 1.19-2
+- Use python3 on rhel8.
+- Remove support for rhel5.
+
 * Sat Jul 20 2019 Dave Dykstra <dwd@fnal.gov> 1.19-1
 - Add setup.py for making a standard python installation
 - Use ssl.get_default_verify_paths() to find default CA paths, when possible
