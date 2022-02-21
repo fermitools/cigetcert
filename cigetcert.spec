@@ -61,6 +61,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 #- Add make sources target for koji build
+#- Add make srpm target for copr build
 #- Support port numbers in https urls
 
 * Wed Feb 26 2020 Dave Dykstra <dwd@fnal.gov> 1.19-2
