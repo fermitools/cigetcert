@@ -1156,14 +1156,8 @@ def main():
         efatal("Failure on response from assertion consumer %s" %
                assertionConsumerServiceURL, e)
 
-    # Ignore the response body. We only want the cookie which the opener
-    #   has already stored in the cookiejar.
-
-    shibcookie = cookiejar.make_cookies(achandle, acrequest)[0]
-    if options.debug:
-        print("###### Begin shibboleth cookie")
-        print([shibcookie])
-        print("###### End shibboleth cookie")
+    # Ignore the response body. We only want the cookies which the opener
+    #   has already stored in the cookiejar, and to add one.
 
     def random_string(length, outof=string.ascii_lowercase+string.digits):
         # http://stackoverflow.com/a/23728630/2213647 says SystemRandom()
@@ -1173,10 +1167,14 @@ def main():
     # Add a 10-character random Cross Site Request Forgery prevention cookie.
     # It also has to be a form value in order to pass the CILogon CSRF check.
     csrfstr = random_string(10)
+    # get an example cookie object and modify its name and value
+    csrfcookie = cookiejar.make_cookies(achandle, acrequest)[0]
+    csrfcookie.name = 'CSRF'
+    csrfcookie.value = csrfstr
+    cookiejar.set_cookie(csrfcookie)
+
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': 'CSRF=' + csrfstr + '; ' +
-        shibcookie.name + '=' + shibcookie.value
     }
 
     # Choose a random password for encrypting pkcs12 cert/key over the link.
