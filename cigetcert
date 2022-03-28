@@ -27,7 +27,7 @@
 from __future__ import print_function
 
 prog = "cigetcert"
-version = "1.19"
+version = "1.20"
 
 import sys
 import os
@@ -245,6 +245,7 @@ class CertValidatingHTTPSConnection(http_client.HTTPConnection):
         timeout = SSL.timeout(15)
         sslconn.set_socket_read_timeout(timeout)
         sslconn.set_socket_write_timeout(timeout)
+        sslconn.set_tlsext_host_name(self.host) # sets Server Name Indication
         sslconn.connect((self.host, self.port))
         self.sock = _SslSocketWrapper(sslconn)
 

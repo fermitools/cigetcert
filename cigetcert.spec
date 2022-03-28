@@ -1,7 +1,7 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.19
-Release: 2%{?dist}
+Version: 1.20
+Release: 1%{?dist}
 License: BSD
 Group: Applications/System
 URL: http://redmine.fnal.gov/projects/fermitools/wiki/cigetcert
@@ -60,10 +60,12 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-#- Add make sources target for koji build
-#- Add make srpm target for copr build
-#- Support port numbers in https urls
-#- Return all received cookies in the final getcert step
+* Mon Mar 28 2022 Dave Dykstra <dwd@fnal.gov> 1.20-1
+- Add make sources target for koji build
+- Add make srpm target for copr build
+- Support port numbers in https urls
+- Return all received cookies in the final getcert step
+- Add sending Server Name Indication on https connections
 
 * Wed Feb 26 2020 Dave Dykstra <dwd@fnal.gov> 1.19-2
 - Use python3 on rhel8.
