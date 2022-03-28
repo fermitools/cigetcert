@@ -64,6 +64,7 @@ rm -rf $RPM_BUILD_ROOT
 #- Add make srpm target for copr build
 #- Support port numbers in https urls
 #- Return all received cookies in the final getcert step
+#- Add sending Server Name Indication on https connections
 
 * Wed Feb 26 2020 Dave Dykstra <dwd@fnal.gov> 1.19-2
 - Use python3 on rhel8.
