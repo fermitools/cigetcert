@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # cigetcert gets an X.509 certificate from an SP using the ECP profile.
 # Optionally it can also get a grid proxy certificate and/or transfer
@@ -12,7 +12,7 @@
 #
 # Nonstandard python libraries required:
 #  m2crypto
-#  pyOpenSSL
+#  pyOpenSSL or cryptography
 #  python-kerberos
 #  python-lxml
 
@@ -27,7 +27,7 @@
 from __future__ import print_function
 
 prog = "cigetcert"
-version = "1.20"
+version = "1.21"
 
 import sys
 import os
@@ -46,6 +46,15 @@ import struct
 import tempfile
 
 try:
+    # this is the newer way to do pkcs12, for example on el9
+    from cryptography.hazmat.primitives.serialization.pkcs12 import load_pkcs12
+    from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+    cryptographypkcs12 = True
+except: # cryptography < 36.0.0, use OpenSSL instead
+    from OpenSSL import crypto
+    cryptographypkcs12 = False
+
+try:
     from http import (client as http_client, cookiejar as http_cookiejar)
     from urllib import (request as urllib_request, parse as urllib_parse)
     unichr = chr
@@ -60,7 +69,6 @@ except ImportError:  # python < 3
 import kerberos
 from lxml import etree
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
-from OpenSSL import crypto
 
 import shlex
 from optparse import OptionParser
@@ -282,7 +290,7 @@ def asn1time_epoch_secs(asn1time):
 # Based on code from the gridproxy library
 #  https://github.com/abbot/gridproxy/blob/master/gridproxy/__init__.py
 # which is Copyright Lev Shamardin and covered under the GNU GPLv3 license.
-# Returns tuple of an RFC proxy cert PEM and proxy private key PEM 
+# Returns tuple of an RFC proxy cert PEM and proxy private key PEM, as bytes
 def generate_proxycert(cert, certprivkey, lifehours, limited=False, bits=2048):
     # according to
     #   https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29#Key_generation
@@ -1215,27 +1223,26 @@ def main():
         sys.stdout.write('.')
         sys.stdout.flush()
 
-    # M2Crypto does not support pkcs12 so need to use pyOpenSSL
+    # M2Crypto does not support pkcs12 so need to use alternate package
     try:
-        p12 = crypto.load_pkcs12(pkcs12cert, p12password)
+        if cryptographypkcs12:
+            p12 = load_pkcs12(pkcs12cert, bytes(p12password, encoding='utf-8'))
+            certbytes = p12.cert.certificate.public_bytes(Encoding.PEM)
+            keybytes = p12.key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
+        else:
+            p12 = crypto.load_pkcs12(pkcs12cert, p12password)
+            certbytes = crypto.dump_certificate(crypto.FILETYPE_PEM, p12.get_certificate())
+            keybytes = crypto.dump_privatekey(crypto.FILETYPE_PEM, p12.get_privatekey())
     except Exception as e:
         efatal("could not decode certificate from SP %s" % options.spurl, e)
 
-    cert = p12.get_certificate()
-    key = p12.get_privatekey()
-
     # convert back to M2Crypto objects
-    certstr = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-    cert = X509.load_cert_string(certstr)
-    keystr = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
-    key = EVP.load_key_string(keystr).get_rsa()
+    cert = X509.load_cert_string(certbytes)
+    key = EVP.load_key_string(keybytes).get_rsa()
 
     if options.debug:
         print("###### Begin certificate")
-        if isinstance(certstr, bytes):
-            sys.stdout.write(certstr.decode('utf-8'))
-        else:
-            sys.stdout.write(certstr)
+        sys.stdout.write(certbytes.decode('utf-8'))
         print("###### End certificate")
         # deliberately not printing key, to prevent somebody from
         #  accidentally storing it on disk if they redirect stdout
@@ -1252,9 +1259,9 @@ def main():
             sys.stdout.write('Generating proxy ...')
             sys.stdout.flush()
         try:
-            (proxystr, proxykeystr) = generate_proxycert(
+            (proxybytes, proxykeybytes) = generate_proxycert(
                 cert, key, options.proxyhours)
-            proxy = X509.load_cert_string(proxystr)
+            proxy = X509.load_cert_string(proxybytes)
         except Exception as e:
             efatal("failure generating proxy for storage", e)
         if showprogress:
@@ -1277,13 +1284,13 @@ def main():
         efatal("failure creating file", e)
     try:
         if options.proxy:
-            handle.write(proxystr)
-            handle.write(proxykeystr)
-            handle.write(certstr)
+            handle.write(proxybytes)
+            handle.write(proxykeybytes)
+            handle.write(certbytes)
             firstcert = proxy
         else:
-            handle.write(certstr)
-            handle.write(keystr)
+            handle.write(certbytes)
+            handle.write(keybytes)
             firstcert = cert
     except Exception as e:
         efatal("failure writing file", e)
@@ -1315,7 +1322,7 @@ def main():
         sys.stdout.write('Generating proxy for MyProxy ...')
         sys.stdout.flush()
     try:
-        (myproxystr, myproxykeystr) = generate_proxycert(cert, key, options.hours)
+        (myproxybytes, myproxykeybytes) = generate_proxycert(cert, key, options.hours)
     except Exception as e:
         efatal("failure generating proxy for MyProxy", e)
     if showprogress:
@@ -1345,15 +1352,12 @@ def main():
 
     if options.debug:
         print("###### Begin chain sending to MyProxy")
-        if isinstance(certstr, bytes):
-            sys.stdout.write(myproxystr.decode('utf-8') + myproxykeystr.decode('utf-8') + certstr.decode('utf-8'))
-        else:
-            sys.stdout.write(myproxystr + myproxykeystr + certstr)
+        sys.stdout.write((myproxybytes + myproxykeybytes + certbytes).decode('utf-8'))
         print("###### End chain sending to MyProxy")
 
     # these have to all be sent in one write or sometimes MyProxy
     #  doesn't read all the pieces properly
-    sslsock.send(myproxystr + myproxykeystr + certstr)
+    sslsock.send(myproxybytes + myproxykeybytes + certbytes)
 
     response, params = parse_myproxy_response(sslsock)
     if response:

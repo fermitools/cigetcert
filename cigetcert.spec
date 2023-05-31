@@ -1,6 +1,6 @@
 Summary: Get an X.509 certificate with SAML ECP and store proxies
 Name: cigetcert
-Version: 1.20
+Version: 1.21
 Release: 1%{?dist}
 License: BSD
 Group: Applications/System
@@ -17,7 +17,11 @@ Requires: pyOpenSSL
 %define _python python3
 %define _pycompflag -b
 Requires: python3-m2crypto
+%if %{?rhel}%{!?rhel:9} < 9
 Requires: python3-pyOpenSSL
+%else
+Requires: python3-cryptography
+%endif
 %endif
 Requires: %{_python}
 Requires: %{_python}-lxml
@@ -60,6 +64,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri May 26 2023 Dave Dykstra <dwd@fnal.gov> 1.21-1
+- Fix operation on el9, with python 3.9
+
 * Mon Mar 28 2022 Dave Dykstra <dwd@fnal.gov> 1.20-1
 - Add make sources target for koji build
 - Add make srpm target for copr build
