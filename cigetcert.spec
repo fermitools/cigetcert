@@ -18,7 +18,8 @@ Requires: pyOpenSSL
 %define _pycompflag -b
 Requires: python3-m2crypto
 %if %{?rhel}%{!?rhel:9} < 9
-Requires: compat-openssl10 # needed by python3-m2crypto on rhel8 only
+# compat-openssl10 needed by python3-m2crypto on rhel8 only
+Requires: compat-openssl10
 Requires: python3-pyOpenSSL
 %else
 Requires: python3-cryptography
