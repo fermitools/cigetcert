@@ -18,6 +18,7 @@ Requires: pyOpenSSL
 %define _pycompflag -b
 Requires: python3-m2crypto
 %if %{?rhel}%{!?rhel:9} < 9
+Requires: compat-openssl10 # needed by python3-m2crypto on rhel8 only
 Requires: python3-pyOpenSSL
 %else
 Requires: python3-cryptography
@@ -66,6 +67,7 @@ rm -rf $RPM_BUILD_ROOT
 %changelog
 * Fri May 26 2023 Dave Dykstra <dwd@fnal.gov> 1.21-1
 - Fix operation on el9, with python 3.9
+- Add Requires openssl-compat10 on el8
 
 * Mon Mar 28 2022 Dave Dykstra <dwd@fnal.gov> 1.20-1
 - Add make sources target for koji build
