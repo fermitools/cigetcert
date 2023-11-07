@@ -32,7 +32,6 @@ version = "1.21"
 import sys
 import os
 import re
-import pwd
 import socket
 import getpass
 import base64
@@ -44,6 +43,7 @@ import calendar
 import ssl
 import struct
 import tempfile
+import platform
 
 try:
     # this is the newer way to do pkcs12, for example on el9
@@ -66,40 +66,75 @@ except ImportError:  # python < 3
     from urllib import urlencode
     urllib_parse.urlencode = urlencode
 
-import kerberos
 from lxml import etree
 from M2Crypto import SSL, X509, EVP, RSA, ASN1, m2
 
 import shlex
 from optparse import OptionParser
 
-# get the default certificates paths for this platform
-_default_cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
-_default_capath = "/etc/grid-security/certificates"
-try:
-    _paths = ssl.get_default_verify_paths()
-except AttributeError:  # python < 2.7
-    pass
+if os.name == "nt":
+    import winkerberos as kerberos
 else:
-    # always prefer python's default cafile
-    if _paths.cafile:
-        _default_cafile = _paths.cafile
-    # prefer grid-security default capath
-    if _paths.capath and not os.path.isdir(_default_capath):
-        _default_capath = _paths.capath
-if not os.path.isfile(_default_cafile or ''):  # use ca-certificates file:
-    _default_cafile = "/etc/pki/tls/cert.pem"
+    import kerberos
+
+USERNAME = os.getlogin()
 
 defaults = {
     "spurl": "https://ecp.cilogon.org/secure/getcert",
     "idplisturl": "https://cilogon.org/include/ecpidps.txt",
-    "cafile": _default_cafile,
-    "capath": _default_capath,
 }
 
 # these are global
 options = None
 showprogress = False
+
+
+def get_default_output_filename():
+    if os.name == "nt":
+        tmpdir = os.path.expandvars(r'%SYSTEMROOT%\Temp')
+        tmpname = "x509up_{}".format(USERNAME)
+    else:
+        tmpdir = "/tmp"
+        tmpname = "x509up_u{}".format(os.getuid())
+    return os.path.join(tmpdir, tmpname)
+
+
+defaults["out"] = get_default_output_filename()
+
+
+def get_ca_defaults():
+    # on Windows and macOS, always trust the built-in defaults
+    if platform.system() in {"Windows", "Darwin"}:
+        paths = ssl.get_default_verify_paths()
+        return {
+            "cafile": paths.cafile,
+            "capath": paths.capath,
+        }
+
+    # on Linux we can be a bit more discerning
+    cafile = '/etc/ssl/certs/ca-certificates.crt'  # debian
+    capath = "/etc/grid-security/certificates"
+    try:
+        paths = ssl.get_default_verify_paths()
+    except AttributeError:  # python < 2.7
+        pass
+    else:
+        # always prefer python's default cafile
+        if paths.cafile:
+            cafile = paths.cafile
+        # prefer grid-security default capath
+        if paths.capath and not os.path.isdir(capath):
+            capath = paths.capath
+    if not os.path.isfile(cafile or ''):  # use ca-certificates file:
+        cafile = "/etc/pki/tls/cert.pem"
+
+    return {
+        "cafile": cafile,
+        "capath": capath,
+    }
+
+
+defaults.update(get_ca_defaults())
 
 
 def usage(parser, msg):
@@ -505,7 +540,7 @@ def main():
                       metavar="path",
                       help="Certifying Authority certificates directory " +
                       '[default: $X509_CERT_DIR or ' +
-                      defaults['capath'] + ']')
+                      str(defaults['capath']) + ']')
     parser.add_option("-k", "--kerberos",
                       action="store_const", const=1, default=0,
                       help="prefer kerberos authentication if available")
@@ -524,7 +559,7 @@ def main():
     parser.add_option("-o", "--out",
                       metavar="path",
                       help="file path to save certificate and key chain " +
-                            "[default: $X509_USER_PROXY or /tmp/x509up_u%uid]")
+                            "[default: $X509_USER_PROXY or {}]".format(defaults["out"]))
     parser.add_option("", "--reuseonly",
                       action="store_const", const=1, default=0,
                       help="only verify existing proxy can be reused " +
@@ -654,9 +689,7 @@ def main():
 
     # calculate defaults for options that are too complex for "default" keyword
     if options.out is None:
-        options.out = os.getenv("X509_USER_PROXY")
-        if options.out is None:
-            options.out = "/tmp/x509up_u%uid"
+        options.out = os.getenv("X509_USER_PROXY", defaults["out"])
     if options.hours > maxproxyhours:
         if options.proxyhours is None:
             options.proxyhours = defproxyhours
@@ -719,10 +752,11 @@ def main():
         print()
 
     # Check to see if an adequate proxy or cert already exists
-    username = options.username.replace(
-        "%currentuser", pwd.getpwuid(os.geteuid()).pw_name)
+    username = options.username.replace("%currentuser", USERNAME)
     myproxyusername = options.myproxyusername.replace("%username", username)
-    outfile = options.out.replace("%uid", str(os.geteuid()))
+    outfile = options.out
+    if "%uid" in outfile:  # this doesn't exist on windows
+        outfile = outfile.replace("%uid", str(os.geteuid()))
     if os.path.exists(outfile):
         if options.reuseonly == 0:
             if not os.access(outfile, os.W_OK):
@@ -1190,8 +1224,11 @@ def main():
     # The ascii letters are for strength, the digits and special characters
     #  are just in case future rules enforce such things.
     # Could instead use a CSR but that limits certificates to 277 hours.
-    p12password = random_string(16, string.ascii_letters) + \
-        random_string(2, string.digits) + random_string(2, '!@#$%^&*()')
+    p12password = (
+        random_string(16, string.ascii_letters) +
+        random_string(2, string.digits) +
+        random_string(2, '!@#$%^&*()')
+    ).encode("utf-8")
 
     certformvars = [
         ('submit', 'pkcs12'),
@@ -1278,7 +1315,11 @@ def main():
         pass
     try:
         fd, path = tempfile.mkstemp(
-            prefix=os.path.dirname(outfile)+'/.cigetcert')
+            prefix=os.path.join(
+                os.path.dirname(outfile),
+                '.cigetcert',
+            ),
+        )
         handle = os.fdopen(fd, 'wb')
     except Exception as e:
         efatal("failure creating file", e)
